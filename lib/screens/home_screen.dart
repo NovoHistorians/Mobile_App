@@ -1,0 +1,110 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:provider/provider.dart';
+import '../models/chapter_model.dart';
+import '../providers/user_provider.dart';
+import '../models/user_model.dart';
+import '../services/notification_service.dart';
+import '../widgets/custom_scaffold.dart';
+import '../widgets/study_tracker.dart';
+
+class HomeScreen extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final user = Provider.of<UserProvider>(context).user;
+
+    if (user == null) {
+      return Center(child: Text('No user data available'));
+    }
+
+    StudyTracker.checkInactivity().then((inactive) {
+      if (inactive) {
+        StudyNotificationService().notifyInactivity();
+      }
+    });
+
+    // Schedule daily reminder
+    StudyNotificationService().scheduleDailyStudyReminder(user);
+
+    return CustomScaffold(
+      title: "الدروس",
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.pushNamed(context, '/welcome');
+                  },
+                  style: ElevatedButton.styleFrom(
+                    padding: EdgeInsets.symmetric(horizontal: 30, vertical: 5),
+                    backgroundColor: Color(0xFF7A6C5D),
+                    textStyle: TextStyle(fontSize: 20),
+                  ),
+                  child: Text(
+                    'تغيير',
+                    textDirection: TextDirection.rtl,
+                    style: TextStyle(fontSize: 15, color: Color(0xFFFFFFFF)),
+                  ),
+                ),
+                Text(
+                  'السنة ${user.year}',
+                  style: TextStyle(fontSize: 25, fontWeight: FontWeight.w800),
+                  textDirection: TextDirection.rtl,
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ListView.builder(
+              itemCount: user.chapters.length,
+              itemBuilder: (context, index) {
+                final chapter = user.chapters[index];
+                return ChapterCard(chapter: chapter);
+              },
+            ),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        elevation: 0,
+        onPressed: () {
+          // Navigate to chatbot page
+          Navigator.of(context).pop();
+          Navigator.pushNamedAndRemoveUntil(
+            context,
+            '/chat',
+            (route) => false,
+          );
+        },
+        backgroundColor: Colors.transparent,
+        child: Container(
+          padding: EdgeInsets.all(3),
+          decoration: BoxDecoration(
+              shape: BoxShape.circle, // Creates a circular shape
+              color: Colors.white, // Customize border color
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.grey, // Customize shadow color
+                  blurRadius: 5, // Customize shadow blur
+                  offset: Offset(0, 3), // Customize shadow position
+                )
+              ]),
+          // Ensures the child fits within the circular shape
+          child: Image.asset(
+            'assets/images/chat.png',
+            width: 60, // Matches default FAB size
+            height: 60,
+            fit: BoxFit.contain, // Ensures the image covers the space properly
+          ),
+        ), // Customize background color
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
+      floatingActionButtonAnimator: FloatingActionButtonAnimator.scaling,
+    );
+  }
+}
