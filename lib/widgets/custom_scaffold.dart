@@ -1,7 +1,12 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:novo_historians/screens/chatbot_screen.dart';
+import 'package:novo_historians/screens/contact_info_screen.dart';
+import 'package:novo_historians/screens/help_support_screen.dart';
+import 'package:novo_historians/screens/home_screen.dart';
 import 'package:provider/provider.dart';
 import '../providers/user_provider.dart';
+import '../screens/profile_screen.dart';
 
 class CustomScaffold extends StatelessWidget {
   final String title;
@@ -47,26 +52,49 @@ class CustomScaffold extends StatelessWidget {
           children: <Widget>[
             Directionality(
               textDirection: TextDirection.rtl, // Reverses the direction
-              child: UserAccountsDrawerHeader(
-                accountName: Text(
-                  user?.name ?? 'تلميذ',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                accountEmail: Text(
-                  'السنة ${user?.year ?? 1}',
-                  style: TextStyle(fontSize: 16),
-                ),
-                currentAccountPicture: CircleAvatar(
-                  backgroundColor: Colors.white,
-                  backgroundImage:
-                      AssetImage(user?.avatar ?? 'assets/avatars/default.png'),
-                ),
-                decoration: BoxDecoration(
-                  color: Color(0xFF7A6C5D),
-                ),
+              child: Consumer<UserProvider>(
+                builder: (context, userProvider, _) {
+                  final user = userProvider.user;
+                  return GestureDetector(
+                      onTap: () {
+                        Navigator.of(context).pop(); // Close the drawer
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ProfileScreen(),
+                          ),
+                        );
+                      },
+                      child: UserAccountsDrawerHeader(
+                        accountName: Text(
+                          user?.name ?? 'تلميذ',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        accountEmail: Text(
+                          'السنة ${user?.year ?? 'غير محددة'}',
+                          style: TextStyle(fontSize: 16),
+                        ),
+                        currentAccountPicture: CircleAvatar(
+                          backgroundColor: Colors.white,
+                          backgroundImage: AssetImage(
+                            user?.avatar ?? 'assets/avatars/default.png',
+                          ),
+                        ),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topRight,
+                            end: Alignment.bottomLeft,
+                            colors: [
+                              Color(0xFF7A6C5D),
+                              Color(0xFF9B8B7A),
+                            ],
+                          ),
+                        ),
+                      ));
+                },
               ),
             ),
             ListTile(
@@ -82,10 +110,11 @@ class CustomScaffold extends StatelessWidget {
               ),
               onTap: () {
                 Navigator.of(context).pop();
-                Navigator.pushNamedAndRemoveUntil(
+                Navigator.push(
                   context,
-                  '/home',
-                  (route) => false,
+                  MaterialPageRoute(
+                    builder: (context) => HomeScreen(),
+                  ),
                 );
               },
             ),
@@ -102,10 +131,11 @@ class CustomScaffold extends StatelessWidget {
               ),
               onTap: () {
                 Navigator.of(context).pop();
-                Navigator.pushNamedAndRemoveUntil(
+                Navigator.push(
                   context,
-                  '/chat',
-                  (route) => false,
+                  MaterialPageRoute(
+                    builder: (context) => ChatbotScreen(),
+                  ),
                 );
               },
             ),
@@ -122,14 +152,15 @@ class CustomScaffold extends StatelessWidget {
               ),
               onTap: () {
                 Navigator.of(context).pop();
-                Navigator.pushNamedAndRemoveUntil(
+                Navigator.push(
                   context,
-                  '/profile',
-                  (route) => false,
+                  MaterialPageRoute(
+                    builder: (context) => ProfileScreen(),
+                  ),
                 );
               },
             ),
-            ListTile(
+            /*ListTile(
               leading: Icon(Icons.notifications, size: 30),
               title: Text(
                 'الإشعارات',
@@ -148,7 +179,7 @@ class CustomScaffold extends StatelessWidget {
                   (route) => false,
                 );
               },
-            ),
+            ),*/
             ListTile(
               leading: Icon(Icons.help, size: 30),
               title: Text(
@@ -161,7 +192,13 @@ class CustomScaffold extends StatelessWidget {
                 textAlign: TextAlign.right,
               ),
               onTap: () {
-                // Navigate to help & support
+                Navigator.of(context).pop();
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => HelpSupportScreen(),
+                  ),
+                );
               },
             ),
             ListTile(
@@ -176,7 +213,13 @@ class CustomScaffold extends StatelessWidget {
                 textAlign: TextAlign.right,
               ),
               onTap: () {
-                // Navigate to contact info
+                Navigator.of(context).pop();
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ContactInfoScreen(),
+                  ),
+                );
               },
             ),
           ],

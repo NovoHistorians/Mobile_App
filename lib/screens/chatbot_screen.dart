@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:lottie/lottie.dart';
 import '../models/flashcard_model.dart';
 import '../providers/chat_provider.dart';
+import '../providers/user_provider.dart';
 import '../widgets/custom_scaffold.dart';
 
 class ChatbotScreen extends StatelessWidget {
@@ -76,11 +77,17 @@ class _ChatbotScreenContentState extends State<ChatbotScreenContent> {
   void _handleSubmit(String text) {
     if (text.trim().isEmpty) return;
 
-    // Clear text and add the message
+    // Remove extra blank lines
+    String sanitizedText = text
+        .trim() // Remove leading and trailing whitespace
+        .replaceAll(RegExp(r'\n\s*\n'),
+            '\n'); // Collapse multiple blank lines into a single newline
+
+    // Clear text and add the sanitized message
     _textController.clear();
     Provider.of<ChatProvider>(context, listen: false)
       ..clearSuggestions()
-      ..addMessage(text, true);
+      ..addMessage(sanitizedText, true);
 
     // Avoid immediately requesting focus; delay slightly to prevent flickering
     Future.delayed(Duration(milliseconds: 50), () {
@@ -101,7 +108,7 @@ class _ChatbotScreenContentState extends State<ChatbotScreenContent> {
         children: [
           Expanded(
             child: Container(
-              color: Color(0xFFF5F5F5),
+              color: Color(0xFFEBEBD3),
               child: Consumer<ChatProvider>(
                 builder: (context, chatProvider, _) {
                   return ListView.builder(
@@ -186,6 +193,8 @@ class _ChatbotScreenContentState extends State<ChatbotScreenContent> {
   }
 
   Widget _buildMessageBubble(ChatMessage message) {
+    final user = Provider.of<UserProvider>(context).user;
+
     return Padding(
       padding: EdgeInsets.only(top: 8, bottom: 8),
       child: Row(
@@ -203,7 +212,7 @@ class _ChatbotScreenContentState extends State<ChatbotScreenContent> {
           ],
           Flexible(
             child: Container(
-              padding: EdgeInsets.all(16),
+              padding: EdgeInsets.all(14),
               decoration: BoxDecoration(
                 color: message.isUser ? Color(0xFF7A6C5D) : Colors.white,
                 borderRadius: BorderRadius.only(
@@ -226,6 +235,7 @@ class _ChatbotScreenContentState extends State<ChatbotScreenContent> {
               ),
               child: Text(
                 message.text,
+                textDirection: TextDirection.rtl,
                 style: TextStyle(
                   color: message.isUser ? Colors.white : Colors.black87,
                   fontSize: 16,
@@ -236,9 +246,9 @@ class _ChatbotScreenContentState extends State<ChatbotScreenContent> {
           if (message.isUser) ...[
             SizedBox(width: 8),
             CircleAvatar(
-              backgroundColor: Colors.blue,
-              child: Icon(Icons.person, color: Colors.white),
-            ),
+                backgroundColor: Colors.white,
+                backgroundImage:
+                    AssetImage(user?.avatar ?? 'assets/avatars/default.png')),
           ],
         ],
       ),
@@ -247,8 +257,10 @@ class _ChatbotScreenContentState extends State<ChatbotScreenContent> {
 
   Widget _buildInputField() {
     return Container(
+      margin: EdgeInsets.symmetric(vertical: 15.0, horizontal: 20.0),
       decoration: BoxDecoration(
         color: Colors.white,
+        borderRadius: BorderRadius.circular(30),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.1),
@@ -258,13 +270,16 @@ class _ChatbotScreenContentState extends State<ChatbotScreenContent> {
         ],
       ),
       child: Padding(
-        padding: EdgeInsets.all(8.0),
+        padding: EdgeInsets.all(5.0),
         child: Row(
           children: [
             Expanded(
               child: TextField(
                 controller: _textController,
                 focusNode: _focusNode,
+                maxLines: null, // Allows unlimited vertical expansion
+                minLines: 1, // Start with a single line
+                keyboardType: TextInputType.multiline,
                 textDirection: TextDirection
                     .rtl, // Explicitly set text direction for Arabic
                 decoration: InputDecoration(
@@ -276,23 +291,27 @@ class _ChatbotScreenContentState extends State<ChatbotScreenContent> {
                     borderSide: BorderSide.none,
                   ),
                   filled: true,
-                  fillColor: Color(0xFFF5F5F5),
+                  fillColor: Colors.transparent,
                   contentPadding: EdgeInsets.symmetric(
-                    horizontal: 20,
+                    horizontal: 15,
                     vertical: 10,
                   ),
                 ),
                 onSubmitted: _handleSubmit,
               ),
             ),
-            SizedBox(width: 8),
-            ElevatedButton(
-              child: Image.asset(
+            SizedBox(width: 5),
+            IconButton(
+              icon: Icon(
+                Icons.send_rounded,
+                color: Colors.brown,
+              ),
+              /*Image.asset(
                 "assets/images/send.png",
                 height: 30,
                 width: 30,
                 fit: BoxFit.cover,
-              ),
+              ),*/
               onPressed: () => _handleSubmit(_textController.text),
             ),
           ],

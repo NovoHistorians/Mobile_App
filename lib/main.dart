@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:novo_historians/screens/contact_info_screen.dart';
+import 'package:novo_historians/screens/help_support_screen.dart';
+import 'package:novo_historians/screens/privacy_policy_screen.dart';
+import 'package:novo_historians/screens/terms_service_screen.dart';
 import 'package:provider/provider.dart';
 import 'providers/user_provider.dart';
 import 'screens/chatbot_screen.dart';
@@ -10,9 +14,9 @@ import 'screens/home_screen.dart';
 import 'services/notification_service.dart';
 import 'utils/theme.dart';
 
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await StudyNotificationService().initializeNotifications();
   runApp(
     MultiProvider(
       providers: [
@@ -30,6 +34,7 @@ class AlgerianHistoryApp extends StatelessWidget {
     return MaterialApp(
       title: 'Algerian History',
       theme: appTheme,
+      navigatorKey: navigatorKey,
       initialRoute: '/',
       routes: {
         '/': (context) => LandingScreen(),
@@ -38,7 +43,10 @@ class AlgerianHistoryApp extends StatelessWidget {
         '/chat': (context) => ChatbotScreen(),
         '/profile': (context) => ProfileScreen(),
         '/notification': (context) => NotificationSettingsScreen(),
-        // Add other routes here
+        '/help': (context) => HelpSupportScreen(),
+        '/terms': (context) => TermsServiceScreen(),
+        '/privacy': (context) => PrivacyPolicyScreen(),
+        '/contact': (context) => ContactInfoScreen()
       },
     );
   }
