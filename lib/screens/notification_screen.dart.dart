@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/notification_service.dart';
 import '../widgets/custom_scaffold.dart';
+import 'dart:developer' as developer;
 
 class NotificationSettingsScreen extends StatefulWidget {
   @override
@@ -11,6 +12,7 @@ class NotificationSettingsScreen extends StatefulWidget {
 
 class _NotificationSettingsScreenState
     extends State<NotificationSettingsScreen> {
+  final _notificationService = StudyNotificationService();
   bool _studyReminders = true;
   bool _achievementNotifications = true;
   bool _streakNotifications = true;
@@ -30,14 +32,48 @@ class _NotificationSettingsScreenState
       _achievementNotifications =
           prefs.getBool('achievement_notifications') ?? true;
       _streakNotifications = prefs.getBool('streak_notifications') ?? true;
+
+      // Load saved times
+      final morningHour = prefs.getInt('morning_reminder_hour') ?? 10;
+      final morningMinute = prefs.getInt('morning_reminder_minute') ?? 0;
+      final eveningHour = prefs.getInt('evening_reminder_hour') ?? 18;
+      final eveningMinute = prefs.getInt('evening_reminder_minute') ?? 0;
+
+      _morningReminder = TimeOfDay(hour: morningHour, minute: morningMinute);
+      _eveningReminder = TimeOfDay(hour: eveningHour, minute: eveningMinute);
     });
   }
 
   Future<void> _savePreferences() async {
+    await _notificationService.updateNotificationSettings(
+      studyReminders: _studyReminders,
+      achievementNotifications: _achievementNotifications,
+      streakNotifications: _streakNotifications,
+    );
+
+    if (_studyReminders) {
+      await _notificationService.scheduleDailyStudyReminder(_morningReminder,
+          type: 'morning');
+      await _notificationService.scheduleDailyStudyReminder(_eveningReminder,
+          type: 'evening');
+    }
+  }
+
+  Future<void> _saveReminderTime(TimeOfDay time, String type) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('study_reminders', _studyReminders);
-    await prefs.setBool('achievement_notifications', _achievementNotifications);
-    await prefs.setBool('streak_notifications', _streakNotifications);
+    if (type == 'morning') {
+      await prefs.setInt('morning_reminder_hour', time.hour);
+      await prefs.setInt('morning_reminder_minute', time.minute);
+    } else {
+      await prefs.setInt('evening_reminder_hour', time.hour);
+      await prefs.setInt('evening_reminder_minute', time.minute);
+    }
+    await _notificationService.scheduleDailyStudyReminder(time, type: type);
+    developer.log('Study Reminders: $_studyReminders');
+    developer.log(
+        'Morning Reminder: ${_morningReminder.hour}:${_morningReminder.minute}');
+    developer.log(
+        'Evening Reminder: ${_eveningReminder.hour}:${_eveningReminder.minute}');
   }
 
   @override
@@ -206,7 +242,13 @@ class _NotificationSettingsScreenState
               context: context,
               initialTime: time,
             );
-            onTimeSelected(picked);
+            if (picked != null) {
+              onTimeSelected(picked);
+              await _saveReminderTime(
+                picked,
+                title.contains('الصباح') ? 'morning' : 'evening',
+              );
+            }
           },
           child: Text(
             '${time.hour}:${time.minute.toString().padLeft(2, '0')}',

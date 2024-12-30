@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:novo_historians/screens/chatbot_screen.dart';
 import 'package:provider/provider.dart';
 import '../models/chapter_model.dart';
 import '../providers/user_provider.dart';
@@ -8,7 +9,30 @@ import '../services/notification_service.dart';
 import '../widgets/custom_scaffold.dart';
 import '../widgets/study_tracker.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
+  @override
+  _HomeScreenState createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // _initializeNotifications();
+  }
+
+  Future<void> _initializeNotifications() async {
+    final notificationService = StudyNotificationService();
+    await notificationService.initializeNotifications();
+
+    // Check for inactivity and schedule reminders
+    StudyTracker.checkInactivity().then((inactive) {
+      if (inactive) {
+        notificationService.notifyInactivity();
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = Provider.of<UserProvider>(context).user;
@@ -16,16 +40,6 @@ class HomeScreen extends StatelessWidget {
     if (user == null) {
       return Center(child: Text('No user data available'));
     }
-
-    StudyTracker.checkInactivity().then((inactive) {
-      if (inactive) {
-        StudyNotificationService().notifyInactivity();
-      }
-    });
-
-    // Schedule daily reminder
-    StudyNotificationService().scheduleDailyStudyReminder(user);
-
     return CustomScaffold(
       title: "الدروس",
       body: Column(
@@ -75,10 +89,11 @@ class HomeScreen extends StatelessWidget {
         onPressed: () {
           // Navigate to chatbot page
           Navigator.of(context).pop();
-          Navigator.pushNamedAndRemoveUntil(
+          Navigator.push(
             context,
-            '/chat',
-            (route) => false,
+            MaterialPageRoute(
+              builder: (context) => ChatbotScreen(),
+            ),
           );
         },
         backgroundColor: Colors.transparent,

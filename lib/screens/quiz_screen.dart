@@ -1,4 +1,6 @@
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
+import 'package:novo_historians/screens/home_screen.dart';
 import 'package:provider/provider.dart';
 import '../models/quiz_model.dart';
 import '../providers/user_provider.dart';
@@ -19,6 +21,44 @@ class _QuizPageState extends State<QuizPage> {
   int _currentQuestionIndex = 0;
   int _score = 0;
   String? _selectedChoice;
+  final AudioPlayer _audioPlayer = AudioPlayer();
+  late List<bool> _answeredQuestions; // Track if questions have been answered
+
+  @override
+  void initState() {
+    super.initState();
+    _initAudio();
+    _answeredQuestions = List<bool>.filled(widget.quiz.questions.length, false);
+  }
+
+  @override
+  void dispose() {
+    _audioPlayer.dispose();
+    super.dispose();
+  }
+
+  Future<void> _initAudio() async {
+    // Pre-load audio files
+    await _audioPlayer.setSource(AssetSource('sounds/correct.mp3'));
+  }
+
+  Future<void> _playSound(String soundType) async {
+    try {
+      switch (soundType) {
+        case 'correct':
+          await _audioPlayer.play(AssetSource('sounds/correct.mp3'));
+          break;
+        case 'wrong':
+          await _audioPlayer.play(AssetSource('sounds/wrong.mp3'));
+          break;
+        case 'complete':
+          await _audioPlayer.play(AssetSource('sounds/complete.mp3'));
+          break;
+      }
+    } catch (e) {
+      print('Error playing sound: $e');
+    }
+  }
 
   void _checkAnswer() {
     if (_selectedChoice == null) return;
@@ -27,9 +67,16 @@ class _QuizPageState extends State<QuizPage> {
         widget.quiz.questions[_currentQuestionIndex].correctAnswer;
 
     setState(() {
-      if (isCorrect) {
-        _score++;
+      // Check if the question is already answered
+      if (!_answeredQuestions[_currentQuestionIndex]) {
+        if (isCorrect) {
+          _score++;
+        }
+        // Mark the question as answered
+        _answeredQuestions[_currentQuestionIndex] = true;
       }
+      // Play appropriate sound
+      _playSound(isCorrect ? 'correct' : 'wrong');
 
       // Show custom dialog
       showDialog(
@@ -49,6 +96,8 @@ class _QuizPageState extends State<QuizPage> {
       });
     } else {
       // Mark the course as completed and update the quiz score
+      _playSound('complete');
+
       setState(() {
         widget.course.markAsCompleted();
         widget.quiz.score = _score;
@@ -155,10 +204,11 @@ class _QuizPageState extends State<QuizPage> {
             ElevatedButton(
               onPressed: () {
                 Navigator.of(context).pop();
-                Navigator.pushNamedAndRemoveUntil(
+                Navigator.push(
                   context,
-                  '/home',
-                  (route) => false,
+                  MaterialPageRoute(
+                    builder: (context) => HomeScreen(),
+                  ),
                 );
               },
               style: ElevatedButton.styleFrom(
