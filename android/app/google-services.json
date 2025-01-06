@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1058987748490",
+    "project_id": "novo-historians",
+    "storage_bucket": "novo-historians.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1058987748490:android:b710a898d0acecb42d9173",
+        "android_client_info": {
+          "package_name": "com.example.novo_historians"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBADG3XG9xcnWglZ5oLP_HXz4K9TgJzEfY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

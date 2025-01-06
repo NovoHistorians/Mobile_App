@@ -2,17 +2,41 @@ import 'package:flutter/material.dart';
 import 'course_model.dart';
 
 class Chapter {
+  final String id;
   final String number;
   final String title;
   final List<Course> courses;
   final String backgroundImage;
 
   Chapter({
+    required this.id,
     required this.number,
     required this.title,
     required this.courses,
     required this.backgroundImage,
   });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'number': number,
+      'title': title,
+      'courses': courses.map((course) => course.toJson()).toList(),
+      'backgroundImage': backgroundImage,
+    };
+  }
+
+  factory Chapter.fromJson(Map<String, dynamic> json) {
+    return Chapter(
+      id: json['id'],
+      number: json['number'],
+      title: json['title'],
+      courses: (json['courses'] as List)
+          .map((course) => Course.fromJson(course as Map<String, dynamic>))
+          .toList(),
+      backgroundImage: json['backgroundImage'],
+    );
+  }
 }
 
 class ChapterCard extends StatefulWidget {
