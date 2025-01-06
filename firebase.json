@@ -1,0 +1,38 @@
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "novo-historians",
+          "appId": "1:1058987748490:android:b710a898d0acecb42d9173",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "novo-historians",
+          "configurations": {
+            "android": "1:1058987748490:android:b710a898d0acecb42d9173",
+            "ios": "1:1058987748490:ios:6ea3737b6480ac602d9173",
+            "macos": "1:1058987748490:ios:6ea3737b6480ac602d9173",
+            "web": "1:1058987748490:web:aa72a276ccbe00ad2d9173",
+            "windows": "1:1058987748490:web:ad46015dfab7bcf92d9173"
+          }
+        }
+      }
+    }
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "*.local"
+      ]
+    }
+  ]
+}

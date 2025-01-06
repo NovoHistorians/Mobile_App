@@ -1,48 +1,112 @@
-// Chat provider with enhanced functionality
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
-import '../data/qaservices.dart';
-import '../models/flashcard_model.dart';
+import '../models/chat_message_model.dart';
+import '../services/openAi_service.dart';
+import '../services/message_cleanup_service.dart';
 
 class ChatProvider with ChangeNotifier {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final OpenAIService _openAIService;
+  final MessageCleanupService _cleanupService = MessageCleanupService();
   List<ChatMessage> _messages = [];
   bool _isTyping = false;
-  List<String> _suggestions = [];
+
+  ChatProvider(this._openAIService);
 
   List<ChatMessage> get messages => _messages;
   bool get isTyping => _isTyping;
-  List<String> get suggestions => _suggestions;
 
-  void updateSuggestions(String query) {
-    _suggestions = QAService.getSuggestions(query);
-    notifyListeners();
-  }
-
-  void addMessage(String text, bool isUser) {
-    _messages.add(
-      ChatMessage(
+  Future<void> addMessage(String userId, String text, bool isUser) async {
+    try {
+      final message = ChatMessage(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
         text: text,
         isUser: isUser,
         timestamp: DateTime.now(),
-      ),
-    );
-    notifyListeners();
+      );
 
-    if (isUser) {
-      _isTyping = true;
+      // Save to Firestore with TTL
+      await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('messages')
+          .doc(message.id)
+          .set({
+        ...message.toJson(),
+        'ttl': FieldValue.serverTimestamp(),
+      });
+
+      _messages.insert(0, message);
       notifyListeners();
 
-      // Simulate network delay
-      Future.delayed(Duration(seconds: 1), () {
-        _isTyping = false;
-        final response = QAService.getAnswer(text);
-        addMessage(response!, false);
-      });
+      if (isUser) {
+        _isTyping = true;
+        notifyListeners();
+
+        try {
+          // Get AI response
+          final response = await _openAIService.getResponse(text);
+          _isTyping = false;
+          await addMessage(userId, response, false);
+        } catch (e) {
+          _isTyping = false;
+          await addMessage(
+            userId,
+            'عذراً، حدث خطأ في الاتصال. حاول مرة أخرى.',
+            false,
+          );
+        }
+      }
+    } catch (e) {
+      print('Error adding message: $e');
     }
   }
 
-  void clearSuggestions() {
-    _suggestions = [];
-    notifyListeners();
+  Future<List<ChatMessage>> loadMoreMessages(
+    String userId, {
+    required DateTime lastMessageTimestamp,
+    required int limit,
+  }) async {
+    try {
+      final snapshot = await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('messages')
+          .orderBy('timestamp', descending: true)
+          .startAfter([lastMessageTimestamp])
+          .limit(limit)
+          .get();
+
+      final messages =
+          snapshot.docs.map((doc) => ChatMessage.fromJson(doc.data())).toList();
+
+      _messages.addAll(messages);
+      notifyListeners();
+      return messages;
+    } catch (e) {
+      print('Error loading more messages: $e');
+      return [];
+    }
+  }
+
+  Future<void> loadMessages(String userId, {int limit = 20}) async {
+    try {
+      final snapshot = await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('messages')
+          .orderBy('timestamp', descending: true)
+          .limit(limit)
+          .get();
+
+      _messages =
+          snapshot.docs.map((doc) => ChatMessage.fromJson(doc.data())).toList();
+
+      notifyListeners();
+    } catch (e) {
+      print('Error loading messages: $e');
+      throw e;
+    }
   }
 }

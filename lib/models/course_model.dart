@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-
 import '../screens/flashcard_screen.dart';
 import '../services/notification_service.dart';
 import '../widgets/study_tracker.dart';
 import 'quiz_model.dart';
 
 class Course {
+  final String id;
   final String number;
   final String title;
   bool isCompleted;
@@ -13,6 +13,7 @@ class Course {
   final Quiz quiz;
 
   Course({
+    required this.id,
     required this.number,
     required this.title,
     this.isCompleted = false,
@@ -32,6 +33,28 @@ class Course {
       // Notify every 3 days of streak
       await StudyNotificationService().notifyStudyStreak(streak);
     }
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'number': number,
+      'title': title,
+      'isCompleted': isCompleted,
+      'content': content,
+      'quiz': quiz.toJson(),
+    };
+  }
+
+  factory Course.fromJson(Map<String, dynamic> json) {
+    return Course(
+      id: json['id'],
+      number: json['number'],
+      title: json['title'],
+      isCompleted: json['isCompleted'],
+      content: json['content'],
+      quiz: Quiz.fromJson(json['quiz'] as Map<String, dynamic>),
+    );
   }
 }
 

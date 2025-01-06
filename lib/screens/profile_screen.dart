@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../components/department_drpdown.dart';
 import '../components/level_dropdown.dart';
 import '../components/year_dropdown.dart';
 import '../data/level_years.dart';
 import '../providers/user_provider.dart';
 import '../data/avatars.dart';
+import '../services/load_data.dart';
 import '../widgets/custom_scaffold.dart';
 import 'help_support_screen.dart';
 import 'privacy_policy_screen.dart';
@@ -16,23 +18,77 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
+  final FirestoreService _firestoreService = FirestoreService();
+  Map<String, dynamic> _educationLevels = {};
+  List<String> _years = [];
+  List<String> _departments = [];
+  bool _isLoading = true;
+
   final TextEditingController _nameController = TextEditingController();
   String? _selectedLevel;
   String? _selectedYear;
   String? _selectedAvatar;
+  String? _selectedDepartment;
   bool _isDarkMode = false;
   final _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
-    final user = Provider.of<UserProvider>(context, listen: false).user;
-    if (user != null) {
-      _nameController.text = user.name;
-      _selectedLevel = user.level;
-      _selectedYear = user.year;
-      _selectedAvatar = user.avatar;
+    _initializeData();
+  }
+
+  Future<void> _initializeData() async {
+    try {
+      final user = Provider.of<UserProvider>(context, listen: false).user;
+      final levels = await _firestoreService.getEducationLevels();
+
+      if (user != null) {
+        _nameController.text = user.name;
+        _selectedLevel = user.level;
+        _selectedAvatar = user.avatar;
+
+        if (_selectedLevel != null) {
+          final years =
+              await _firestoreService.getYearsForLevel(_selectedLevel!);
+          _years = years;
+          _selectedYear = user.year;
+
+          if (_shouldShowDepartment()) {
+            final departments = await _firestoreService.getDepartments(
+                _selectedLevel!, _selectedYear!);
+            _departments = departments;
+            _selectedDepartment = user.department;
+          }
+        }
+      }
+
+      setState(() {
+        _educationLevels = levels;
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('Error initializing data: $e');
+      setState(() => _isLoading = false);
     }
+  }
+
+  Future<void> _loadDepartments(String level, String year) async {
+    if (_shouldShowDepartment()) {
+      try {
+        final departments = await _firestoreService.getDepartments(level, year);
+        setState(() {
+          _departments = departments;
+          _selectedDepartment = null;
+        });
+      } catch (e) {
+        print('Error loading departments: $e');
+      }
+    }
+  }
+
+  bool _shouldShowDepartment() {
+    return _selectedLevel == 'الثانوي' || _selectedLevel == 'الجامعي';
   }
 
   @override
@@ -106,6 +162,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 icon: Icons.calendar_today,
                                 title: 'السنة الدراسية',
                                 child: _buildYearDropdown(),
+                              ),
+                            ],
+                            if (_shouldShowDepartment() &&
+                                _selectedYear != null) ...[
+                              SizedBox(height: 16),
+                              _buildProfileField(
+                                icon: Icons.class_,
+                                title: 'التخصص',
+                                child: _buildDepartmentDropdown(),
                               ),
                             ],
                           ],
@@ -255,6 +320,69 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           // Floating Save Button
           Positioned(
+            left: 20,
+            right: 20,
+            bottom: 15,
+            child: Column(
+              //mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    onPressed: _saveProfileSettings,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Color(0xFF7A6C5D),
+                      foregroundColor: Colors.white,
+                      padding: EdgeInsets.symmetric(vertical: 10),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 0,
+                    ),
+                    child: Text(
+                      'حفظ التغييرات',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      await Provider.of<UserProvider>(context, listen: false)
+                          .logout();
+                      Navigator.pushReplacementNamed(context, '/');
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Color.fromARGB(255, 168, 154, 138),
+                      foregroundColor: Colors.white,
+                      padding: EdgeInsets.symmetric(vertical: 10),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 0,
+                    ),
+                    child: Text(
+                      'تسجيل الخروج',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          /*Positioned(
             left: 16,
             right: 16,
             bottom: 16,
@@ -287,8 +415,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
               ),
+              SizedBox(
+                height: 10,
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  await Provider.of<UserProvider>(context, listen: false)
+                      .logout();
+                  Navigator.pushReplacementNamed(context, '/');
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Color(0xFF7A6C5D),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: Text(
+                  'تسجيل الخروج',
+                  style: TextStyle(fontSize: 18, color: Colors.white),
+                ),
+              ),
             ),
-          ),
+          ),*/
         ],
       ),
     );
@@ -404,15 +552,50 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
       child: LevelDropdown(
         selectedLevel: _selectedLevel,
-        onChanged: (String? newValue) {
-          setState(() {
-            _selectedLevel = newValue;
-            _selectedYear = null;
-          });
+        onChanged: (String? newValue) async {
+          if (newValue != null) {
+            setState(() {
+              _selectedLevel = newValue;
+              _selectedYear = null;
+              _selectedDepartment = null;
+              _years = [];
+              _departments = [];
+            });
+            await _loadYears(newValue);
+          }
         },
-        levelYears: levelYears,
+        levels: _educationLevels.keys.toList(),
       ),
     );
+  }
+
+  Widget _buildDepartmentDropdown() {
+    return Container(
+      padding: EdgeInsets.all(5),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade300),
+        color: Colors.grey.shade50,
+      ),
+      child: DepartmentDropdown(
+        selectedDepartment: _selectedDepartment,
+        onChanged: (String? newValue) {
+          setState(() {
+            _selectedDepartment = newValue;
+          });
+        },
+        departments: _departments,
+      ),
+    );
+  }
+
+  Future<void> _loadYears(String level) async {
+    try {
+      final years = await _firestoreService.getYearsForLevel(level);
+      setState(() => _years = years);
+    } catch (e) {
+      print('Error loading years: $e');
+    }
   }
 
   Widget _buildYearDropdown() {
@@ -425,12 +608,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
       child: YearDropdown(
         selectedYear: _selectedYear,
-        onChanged: (String? newValue) {
-          setState(() {
-            _selectedYear = newValue;
-          });
+        onChanged: (String? newValue) async {
+          if (newValue != null) {
+            setState(() {
+              _selectedYear = newValue;
+              _selectedDepartment = null;
+              _departments = [];
+            });
+            if (_shouldShowDepartment()) {
+              await _loadDepartments(_selectedLevel!, newValue);
+            }
+          }
         },
-        years: levelYears[_selectedLevel] ?? [],
+        years: _years,
       ),
     );
   }
@@ -612,6 +802,67 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final userProvider = Provider.of<UserProvider>(context, listen: false);
       final user = userProvider.user;
       if (user != null) {
+        // Only set department if it's required for the level
+        if (_shouldShowDepartment()) {
+          if (_selectedDepartment != null) {
+            user.department = _selectedDepartment!;
+          } else {
+            showDialog(
+              context: context,
+              builder: (context) => Dialog(
+                backgroundColor: Colors.transparent,
+                child: Container(
+                  height: 250,
+                  padding: const EdgeInsets.all(16.0),
+                  decoration: BoxDecoration(
+                    color: Color(0xFFEBEBD3),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.warning,
+                        color: Color.fromARGB(255, 255, 0, 0),
+                        size: 50,
+                      ),
+                      SizedBox(height: 10),
+                      Text(
+                        'يرجى اختيار التخصص',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF7A6C5D),
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      SizedBox(height: 20),
+                      ElevatedButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Color(0xFF7A6C5D),
+                          foregroundColor: Colors.white,
+                          minimumSize: Size(double.infinity, 50),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: Text(
+                          'حسناً',
+                          style: TextStyle(fontSize: 18, color: Colors.white),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+            return;
+          }
+        } else {
+          // Clear department if not applicable for current level
+          user.department = '';
+        }
         user.name = _nameController.text;
         user.level = _selectedLevel!;
         user.year = _selectedYear!;
@@ -674,7 +925,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         builder: (context) => Dialog(
           backgroundColor: Colors.transparent,
           child: Container(
-            height: 200,
+            height: 250,
             padding: const EdgeInsets.all(16.0),
             decoration: BoxDecoration(
               color: Color(0xFFEBEBD3),
@@ -685,7 +936,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               children: [
                 Icon(
                   Icons.warning,
-                  color: Color(0xFF7A6C5D),
+                  color: Color.fromARGB(255, 255, 0, 0),
                   size: 50,
                 ),
                 SizedBox(height: 10),
@@ -696,6 +947,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     fontWeight: FontWeight.bold,
                     color: Color(0xFF7A6C5D),
                   ),
+                  textAlign: TextAlign.center,
                 ),
                 SizedBox(height: 20),
                 ElevatedButton(

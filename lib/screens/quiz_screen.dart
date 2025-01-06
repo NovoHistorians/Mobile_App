@@ -3,9 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:novo_historians/screens/home_screen.dart';
 import 'package:provider/provider.dart';
 import '../models/quiz_model.dart';
+import '../providers/progress_provider.dart';
+import '../providers/quiz_provider.dart';
 import '../providers/user_provider.dart';
 import '../models/course_model.dart';
 import '../widgets/custom_scaffold.dart';
+import 'dart:developer' as developer;
 
 class QuizPage extends StatefulWidget {
   final Quiz quiz;
@@ -34,6 +37,24 @@ class _QuizPageState extends State<QuizPage> {
   @override
   void dispose() {
     _audioPlayer.dispose();
+    final user = Provider.of<UserProvider>(context, listen: false).user;
+    if (_score == widget.quiz.questions.length && user != null) {
+      Provider.of<QuizProvider>(context, listen: false).removeQuiz(
+        widget.course.id,
+        user.level,
+        user.year,
+      );
+
+      final completion = (_score / widget.quiz.questions.length) * 100;
+
+      // Update progress with course completion
+      Provider.of<ProgressProvider>(context, listen: false).trackProgress(
+        userId: user.id,
+        courseId: widget.course.id,
+        completion: completion,
+        quizScore: _score,
+      );
+    }
     super.dispose();
   }
 
@@ -89,27 +110,44 @@ class _QuizPageState extends State<QuizPage> {
 
   void _nextQuestion() {
     Navigator.of(context).pop(); // Close the dialog
+
     if (_currentQuestionIndex < widget.quiz.questions.length - 1) {
       setState(() {
         _currentQuestionIndex++;
-        _selectedChoice = null; // Reset selected choice for next question
+        _selectedChoice = null;
       });
     } else {
-      // Mark the course as completed and update the quiz score
-      _playSound('complete');
+      _handleQuizCompletion();
+    }
+  }
 
-      setState(() {
-        widget.course.markAsCompleted();
-        widget.quiz.score = _score;
-      });
+  void _handleQuizCompletion() async {
+    _playSound('complete');
+    final user = Provider.of<UserProvider>(context, listen: false).user;
 
-      // Show completion dialog
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => _buildCompletionDialog(),
+    if (user != null) {
+      // Calculate final completion percentage
+      final completion = (_score / widget.quiz.questions.length) * 100;
+
+      // Update course completion status
+      widget.course.markAsCompleted();
+      widget.quiz.score = _score;
+
+      // Update progress in database
+      await Provider.of<ProgressProvider>(context, listen: false).trackProgress(
+        userId: user.id,
+        courseId: widget.course.id,
+        completion: completion,
+        quizScore: _score,
       );
     }
+
+    // Show completion dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => _buildCompletionDialog(),
+    );
   }
 
   Widget _buildCustomDialog(bool isCorrect) {
@@ -171,7 +209,7 @@ class _QuizPageState extends State<QuizPage> {
     return Dialog(
       backgroundColor: Colors.transparent,
       child: Container(
-        height: 300,
+        height: 350,
         padding: const EdgeInsets.all(16.0),
         decoration: BoxDecoration(
           color: Colors.blue[100],
@@ -194,7 +232,12 @@ class _QuizPageState extends State<QuizPage> {
                 color: Colors.blue[800],
               ),
             ),
-            SizedBox(height: 10),
+            SizedBox(height: 20),
+            StarRating(
+              score: _score,
+              totalQuestions: widget.quiz.questions.length,
+            ),
+            SizedBox(height: 20),
             Text(
               'نتيجتك النهائية هي: $_score/${widget.quiz.questions.length}',
               textAlign: TextAlign.center,
@@ -235,6 +278,17 @@ class _QuizPageState extends State<QuizPage> {
     if (user == null) {
       return Center(child: Text('لا توجد معلومات حول المستخدم'));
     }
+
+    if (widget.quiz.questions.isEmpty) {
+      developer.log('Quiz has no questions: ${widget.quiz.toJson()}');
+      return Center(
+        child: Text('لا توجد أسئلة متاحة لهذا الاختبار'),
+      );
+    }
+
+    developer
+        .log('Quiz received with ${widget.quiz.questions.length} questions');
+
     double progress =
         (_currentQuestionIndex + 1) / widget.quiz.questions.length;
 
@@ -367,6 +421,39 @@ class _QuizPageState extends State<QuizPage> {
           SizedBox(height: 20),
         ],
       ),
+    );
+  }
+}
+
+// Add this class to quiz_screen.dart
+class StarRating extends StatelessWidget {
+  final int score;
+  final int totalQuestions;
+
+  StarRating({required this.score, required this.totalQuestions});
+
+  int get starCount {
+    final percentage = (score / totalQuestions) * 100;
+    if (percentage >= 80) return 3;
+    if (percentage >= 60) return 2;
+    if (percentage >= 40) return 1;
+    return 0;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List.generate(3, (index) {
+        return Icon(
+          Icons.star,
+          size: 50,
+          color: index < starCount
+              ? Color(0xFFFFD700) // Gold color for filled stars
+              : Colors.grey
+                  .withOpacity(0.3), // Transparent grey for empty stars
+        );
+      }),
     );
   }
 }

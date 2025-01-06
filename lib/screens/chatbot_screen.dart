@@ -1,16 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:lottie/lottie.dart';
-import '../models/flashcard_model.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../models/chat_message_model.dart';
 import '../providers/chat_provider.dart';
 import '../providers/user_provider.dart';
+import '../services/openAi_service.dart';
 import '../widgets/custom_scaffold.dart';
 
 class ChatbotScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    final openAIService = OpenAIService(
+        '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');
     return ChangeNotifierProvider(
-      create: (_) => ChatProvider(),
+      create: (_) => ChatProvider(openAIService),
       child: ChatbotScreenContent(),
     );
   }
@@ -22,42 +26,117 @@ class ChatbotScreenContent extends StatefulWidget {
 }
 
 class _ChatbotScreenContentState extends State<ChatbotScreenContent> {
+  static const int _pageSize = 20;
+  bool _isLoadingMore = false;
+  bool _hasMore = true;
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final FocusNode _focusNode = FocusNode();
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   @override
   void initState() {
     super.initState();
-    _textController.addListener(_onTextChanged);
-
-    _focusNode.addListener(() {
-      if (_focusNode.hasFocus) {
-        print('TextField gained focus');
-      } else {
-        print('TextField lost focus');
-      }
-    });
+    _focusNode.addListener(_onFocusChange);
+    _scrollController.addListener(_onScroll);
+    _loadInitialMessages();
   }
 
-  void _onTextChanged() {
-    final provider = Provider.of<ChatProvider>(context, listen: false);
-
-    // Check if the text contains Arabic characters
-    bool containsArabic =
-        RegExp(r'[\u0600-\u06FF]').hasMatch(_textController.text);
-
-    if (!containsArabic) {
-      provider.updateSuggestions(_textController.text);
+  void _onFocusChange() {
+    if (_focusNode.hasFocus) {
+      print('TextField gained focus');
     } else {
-      // Clear suggestions for Arabic to avoid issues
-      provider.clearSuggestions();
+      print('TextField lost focus');
     }
+  }
+
+  Future<void> _loadMessages() async {
+    final user = Provider.of<UserProvider>(context, listen: false).user;
+    if (user != null) {
+      await Provider.of<ChatProvider>(context, listen: false)
+          .loadMessages(user.id);
+    }
+  }
+
+  Future<void> _loadInitialMessages() async {
+    try {
+      final user = Provider.of<UserProvider>(context, listen: false).user;
+      if (user != null) {
+        await Provider.of<ChatProvider>(context, listen: false)
+            .loadMessages(user.id, limit: _pageSize);
+      }
+    } catch (e) {
+      _showErrorSnackBar();
+    }
+  }
+
+  Future<void> _loadMoreMessages() async {
+    if (!_isLoadingMore && _hasMore) {
+      setState(() => _isLoadingMore = true);
+      try {
+        final user = Provider.of<UserProvider>(context, listen: false).user;
+        if (user != null) {
+          final chatProvider =
+              Provider.of<ChatProvider>(context, listen: false);
+          final lastMessage = chatProvider.messages.last;
+          final moreMessages = await chatProvider.loadMoreMessages(
+            user.id,
+            lastMessageTimestamp: lastMessage.timestamp,
+            limit: _pageSize,
+          );
+          _hasMore = moreMessages.length >= _pageSize;
+        }
+      } catch (e) {
+        _showErrorSnackBar();
+      } finally {
+        setState(() => _isLoadingMore = false);
+      }
+    }
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent * 0.8) {
+      _loadMoreMessages();
+    }
+  }
+
+  void _showErrorSnackBar() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'حدث خطأ. الرجاء المحاولة مرة أخرى',
+          textAlign: TextAlign.right,
+          style: TextStyle(fontSize: 16),
+        ),
+        backgroundColor: Colors.red,
+      ),
+    );
+  }
+
+  Future<void> _handleSubmit(String text) async {
+    if (text.trim().isEmpty) return;
+
+    String sanitizedText = text.trim().replaceAll(RegExp(r'\n\s*\n'), '\n');
+    _textController.clear();
+
+    try {
+      final user = Provider.of<UserProvider>(context, listen: false).user;
+      if (user != null) {
+        await Provider.of<ChatProvider>(context, listen: false)
+            .addMessage(user.id, sanitizedText, true);
+      }
+      _scrollToBottom();
+    } catch (e) {
+      _showErrorSnackBar();
+    }
+
+    if (mounted) _focusNode.requestFocus();
   }
 
   @override
   void dispose() {
-    _textController.removeListener(_onTextChanged);
+    _focusNode.removeListener(_onFocusChange);
     _textController.dispose();
     _scrollController.dispose();
     _focusNode.dispose();
@@ -67,37 +146,11 @@ class _ChatbotScreenContentState extends State<ChatbotScreenContent> {
   void _scrollToBottom() {
     if (_scrollController.hasClients) {
       _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
+        0,
         duration: Duration(milliseconds: 300),
         curve: Curves.easeOut,
       );
     }
-  }
-
-  void _handleSubmit(String text) {
-    if (text.trim().isEmpty) return;
-
-    // Remove extra blank lines
-    String sanitizedText = text
-        .trim() // Remove leading and trailing whitespace
-        .replaceAll(RegExp(r'\n\s*\n'),
-            '\n'); // Collapse multiple blank lines into a single newline
-
-    // Clear text and add the sanitized message
-    _textController.clear();
-    Provider.of<ChatProvider>(context, listen: false)
-      ..clearSuggestions()
-      ..addMessage(sanitizedText, true);
-
-    // Avoid immediately requesting focus; delay slightly to prevent flickering
-    Future.delayed(Duration(milliseconds: 50), () {
-      if (mounted) {
-        _focusNode.requestFocus();
-      }
-    });
-
-    // Scroll to bottom after a short delay
-    Future.delayed(Duration(milliseconds: 100), _scrollToBottom);
   }
 
   @override
@@ -113,16 +166,21 @@ class _ChatbotScreenContentState extends State<ChatbotScreenContent> {
                 builder: (context, chatProvider, _) {
                   return ListView.builder(
                     controller: _scrollController,
+                    reverse: true,
                     padding: EdgeInsets.all(16),
                     itemCount: chatProvider.messages.length +
-                        (chatProvider.isTyping ? 1 : 0),
+                        (chatProvider.isTyping ? 1 : 0) +
+                        (_isLoadingMore ? 1 : 0),
                     itemBuilder: (context, index) {
-                      if (index == chatProvider.messages.length &&
-                          chatProvider.isTyping) {
+                      if (index == 0 && _isLoadingMore) {
+                        return _buildLoadingIndicator();
+                      }
+                      if (chatProvider.isTyping &&
+                          index == chatProvider.messages.length) {
                         return _buildTypingIndicator();
                       }
-
-                      final message = chatProvider.messages[index];
+                      final messageIndex = _isLoadingMore ? index - 1 : index;
+                      final message = chatProvider.messages[messageIndex];
                       return _buildMessageBubble(message);
                     },
                   );
@@ -130,36 +188,38 @@ class _ChatbotScreenContentState extends State<ChatbotScreenContent> {
               ),
             ),
           ),
-          Consumer<ChatProvider>(
-            builder: (context, chatProvider, _) {
-              return Column(
-                children: [
-                  if (chatProvider.suggestions.isNotEmpty)
-                    Container(
-                      height: 50,
-                      child: ListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        padding: EdgeInsets.symmetric(horizontal: 8),
-                        itemCount: chatProvider.suggestions.length,
-                        itemBuilder: (context, index) {
-                          return Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 4),
-                            child: ActionChip(
-                              label: Text(chatProvider.suggestions[index]),
-                              onPressed: () {
-                                _handleSubmit(chatProvider.suggestions[index]);
-                              },
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  _buildInputField(),
-                ],
-              );
-            },
+          _buildInputField(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Image.asset(
+            'assets/images/chat_empty.png',
+            width: 150,
+            height: 150,
+          ),
+          SizedBox(height: 16),
+          Text(
+            'ابدأ محادثتك مع المساعد التاريخي',
+            style: TextStyle(fontSize: 18, color: Colors.grey[700]),
+            textAlign: TextAlign.center,
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildLoadingIndicator() {
+    return Center(
+      child: Padding(
+        padding: EdgeInsets.all(8.0),
+        child: CircularProgressIndicator(),
       ),
     );
   }
@@ -306,12 +366,6 @@ class _ChatbotScreenContentState extends State<ChatbotScreenContent> {
                 Icons.send_rounded,
                 color: Colors.brown,
               ),
-              /*Image.asset(
-                "assets/images/send.png",
-                height: 30,
-                width: 30,
-                fit: BoxFit.cover,
-              ),*/
               onPressed: () => _handleSubmit(_textController.text),
             ),
           ],

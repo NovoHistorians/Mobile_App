@@ -3,6 +3,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:novo_historians/screens/chatbot_screen.dart';
 import 'package:provider/provider.dart';
 import '../models/chapter_model.dart';
+import '../providers/content_provider.dart';
 import '../providers/user_provider.dart';
 import '../models/user_model.dart';
 import '../services/notification_service.dart';
@@ -15,10 +16,64 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  bool _isLoading = true;
+  List<Chapter> _chapters = [];
+  String _loadingMessage = 'جاري التحميل...';
   @override
   void initState() {
     super.initState();
-    // _initializeNotifications();
+    _checkUserAndLoadContent();
+  }
+
+  Future<void> _checkUserAndLoadContent() async {
+    try {
+      final stopwatch = Stopwatch()..start();
+      setState(() => _loadingMessage = 'جاري التحقق من المستخدم...');
+
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
+      await userProvider.initializeUser();
+
+      print('User initialization took: ${stopwatch.elapsed.inMilliseconds}ms');
+
+      if (userProvider.user != null) {
+        await _loadContent();
+      }
+
+      stopwatch.stop();
+      print('Total initialization took: ${stopwatch.elapsed.inMilliseconds}ms');
+    } catch (e) {
+      print('Error checking user: $e');
+      setState(() => _loadingMessage = 'حدث خطأ في التحميل');
+    }
+  }
+
+  Future<void> _loadContent() async {
+    try {
+      setState(() => _loadingMessage = 'جاري تحميل المحتوى...');
+      final stopwatch = Stopwatch()..start();
+
+      final user = Provider.of<UserProvider>(context, listen: false).user;
+      print('Loading content for user: ${user?.level} - ${user?.year}');
+
+      if (user != null) {
+        final contentProvider =
+            Provider.of<ContentProvider>(context, listen: false);
+        final chapters =
+            await contentProvider.getChapters(user.level, user.year);
+        print('Content loading took: ${stopwatch.elapsed.inMilliseconds}ms');
+
+        setState(() {
+          _chapters = chapters;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading content: $e');
+      setState(() {
+        _isLoading = false;
+        _loadingMessage = 'حدث خطأ في تحميل المحتوى';
+      });
+    }
   }
 
   Future<void> _initializeNotifications() async {
@@ -35,6 +90,22 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text(
+              _loadingMessage,
+              style: TextStyle(fontSize: 16),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      );
+    }
     final user = Provider.of<UserProvider>(context).user;
 
     if (user == null) {
@@ -75,10 +146,9 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           Expanded(
             child: ListView.builder(
-              itemCount: user.chapters.length,
+              itemCount: _chapters.length,
               itemBuilder: (context, index) {
-                final chapter = user.chapters[index];
-                return ChapterCard(chapter: chapter);
+                return ChapterCard(chapter: _chapters[index]);
               },
             ),
           ),

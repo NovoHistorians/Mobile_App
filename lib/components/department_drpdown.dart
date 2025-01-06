@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
 
-class LevelDropdown extends StatelessWidget {
-  final String? selectedLevel;
+class DepartmentDropdown extends StatelessWidget {
+  final String? selectedDepartment;
   final Function(String?) onChanged;
-  final List<String> levels;
+  final List<String> departments;
 
-  LevelDropdown({
-    required this.selectedLevel,
+  const DepartmentDropdown({
+    Key? key,
+    required this.selectedDepartment,
     required this.onChanged,
-    required this.levels, // Changed parameter name and type
-  });
+    required this.departments,
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -17,7 +18,7 @@ class LevelDropdown extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
         Text(
-          ' المستوى الدراسي',
+          ' اختر تخصصك:',
           textDirection: TextDirection.rtl,
           style: TextStyle(
               fontSize: 18,
@@ -26,7 +27,7 @@ class LevelDropdown extends StatelessWidget {
         ),
         SizedBox(height: 5),
         Directionality(
-          textDirection: TextDirection.rtl, // Set the dropdown direction to RTL
+          textDirection: TextDirection.rtl,
           child: Container(
             decoration: BoxDecoration(
               color: Color(0xFFFFFFFF),
@@ -46,20 +47,19 @@ class LevelDropdown extends StatelessWidget {
                 padding: EdgeInsets.all(5),
                 hint: Text(
                   "اختر من القائمة",
-                  textDirection: TextDirection.rtl, // Keep hint text RTL
+                  textDirection: TextDirection.rtl,
                   style: TextStyle(
                     fontSize: 18,
                     color: Color(0xFF999999),
                     fontWeight: FontWeight.w500,
                   ),
                 ),
-                value: selectedLevel,
-                items: levels.map((String value) {
+                value: selectedDepartment,
+                items: departments.map((String value) {
                   return DropdownMenuItem<String>(
                     value: value,
                     child: SizedBox(
-                      width:
-                          MediaQuery.of(context).size.width - 0, // Adjust width
+                      width: MediaQuery.of(context).size.width - 0,
                       child: Text(
                         value,
                         textDirection: TextDirection.rtl,
@@ -73,9 +73,8 @@ class LevelDropdown extends StatelessWidget {
                   );
                 }).toList(),
                 onChanged: onChanged,
-                dropdownColor:
-                    Colors.white, // Optional: Change dropdown background color
-                isExpanded: true, // Ensures the dropdown takes full width
+                dropdownColor: Colors.white,
+                isExpanded: true,
                 icon: Icon(Icons.arrow_drop_down, color: Color(0xFF7A6C5D)),
               ),
             ),

@@ -2,8 +2,16 @@ import 'package:flutter/material.dart';
 
 class NameInput extends StatelessWidget {
   final TextEditingController controller;
+  final String hintText;
+  final bool isPassword;
+  final String labelText;
 
-  NameInput({required this.controller});
+  NameInput({
+    required this.controller,
+    required this.hintText,
+    required this.labelText,
+    this.isPassword = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -11,11 +19,12 @@ class NameInput extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
         Text(
-          ' الاسم',
+          labelText,
           style: TextStyle(
-              fontSize: 18,
-              color: Color(0xFF3F414E),
-              fontWeight: FontWeight.bold),
+            fontSize: 18,
+            color: Color(0xFF3F414E),
+            fontWeight: FontWeight.bold,
+          ),
           textDirection: TextDirection.rtl,
         ),
         SizedBox(height: 5),
@@ -36,8 +45,9 @@ class NameInput extends StatelessWidget {
           child: TextField(
             controller: controller,
             textDirection: TextDirection.rtl,
+            obscureText: isPassword, // Hide text for password fields
             decoration: InputDecoration(
-              hintText: 'ادخل اسمك الكامل',
+              hintText: hintText,
               hintTextDirection: TextDirection.rtl,
               hintStyle: TextStyle(color: Color(0xFF999999)),
               border: OutlineInputBorder(
@@ -46,6 +56,14 @@ class NameInput extends StatelessWidget {
               ),
               contentPadding:
                   EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+              suffixIcon: isPassword
+                  ? IconButton(
+                      icon: Icon(Icons.visibility_off),
+                      onPressed: () {
+                        // Toggle password visibility (optional)
+                      },
+                    )
+                  : null,
             ),
           ),
         ),
