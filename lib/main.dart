@@ -114,7 +114,7 @@ Future<void> main() async {
 
     // Initialize services
     final openAIService = OpenAIService(
-        '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');
+        '');
     final quizGenerator = QuizGeneratorService(
         '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');
 

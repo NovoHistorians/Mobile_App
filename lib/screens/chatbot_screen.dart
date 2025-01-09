@@ -13,7 +13,7 @@ class ChatbotScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final openAIService = OpenAIService(
-        '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');
+        '');
     return ChangeNotifierProvider(
       create: (_) => ChatProvider(openAIService),
       child: ChatbotScreenContent(),
