@@ -19,13 +19,16 @@ class ContentProvider with ChangeNotifier {
       final cacheKey = 'chapters_${level}_$year';
       final cachedData = box.get(cacheKey);
 
-      if (cachedData != null) {
+      if (cachedData != null && cachedData is List) {
         print('Returning cached data');
 
-        // Explicitly cast the cached data to List<Map<String, dynamic>>
+        // Validate and cast cached data
         final cachedChapters = (cachedData as List).map((json) {
-          return Chapter.fromJson(
-              Map<String, dynamic>.from(json as Map<dynamic, dynamic>));
+          if (json is Map<String, dynamic>) {
+            return Chapter.fromJson(json);
+          } else {
+            throw FormatException('Invalid cached data format');
+          }
         }).toList();
 
         return cachedChapters;
@@ -80,6 +83,7 @@ class ContentProvider with ChangeNotifier {
 
       // Cache the data
       await box.put(cacheKey, chapters.map((c) => c.toJson()).toList());
+      print('Data cached successfully');
 
       return chapters;
     } catch (e) {

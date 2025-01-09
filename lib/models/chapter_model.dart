@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../providers/content_provider.dart';
 import 'course_model.dart';
 
 class Chapter {
@@ -41,8 +43,9 @@ class Chapter {
 
 class ChapterCard extends StatefulWidget {
   final Chapter chapter;
+  final String userId;
 
-  ChapterCard({required this.chapter});
+  ChapterCard({required this.chapter, required this.userId});
 
   @override
   _ChapterCardState createState() => _ChapterCardState();
@@ -50,11 +53,42 @@ class ChapterCard extends StatefulWidget {
 
 class _ChapterCardState extends State<ChapterCard> {
   bool _isExpanded = false;
+  bool _isLoading = true;
+  int _completedCourses = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchChapterProgress();
+  }
+
+  Future<void> _fetchChapterProgress() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    // Fetch progress for all courses in the chapter
+    for (var course in widget.chapter.courses) {
+      await course.fetchUserProgress(widget.userId);
+    }
+
+    // Recalculate completed courses
+    _updateCompletedCourses();
+
+    setState(() {
+      _isLoading = false;
+    });
+  }
+
+  void _updateCompletedCourses() {
+    setState(() {
+      _completedCourses =
+          widget.chapter.courses.where((course) => course.isCompleted).length;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    int completedCourses =
-        widget.chapter.courses.where((course) => course.isCompleted).length;
     int totalCourses = widget.chapter.courses.length;
 
     return Card(
@@ -90,11 +124,13 @@ class _ChapterCardState extends State<ChapterCard> {
                       color: Colors.white.withOpacity(0.5),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Text(
-                      '$completedCourses/$totalCourses',
-                      style:
-                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
+                    child: _isLoading
+                        ? CircularProgressIndicator() // Show loading indicator
+                        : Text(
+                            '$_completedCourses/$totalCourses',
+                            style: TextStyle(
+                                fontSize: 16, fontWeight: FontWeight.bold),
+                          ),
                   ),
                   // Right Part
                   Column(
@@ -140,11 +176,24 @@ class _ChapterCardState extends State<ChapterCard> {
             ),
             if (_isExpanded)
               Container(
-                color: Color(
-                    0xFFEBEBD3), // Ensure the list has a transparent background
+                color: Color(0xFFEBEBD3),
                 child: Column(
-                  children: widget.chapter.courses.map((course) {
-                    return CourseListItem(course: course);
+                  children: widget.chapter.courses.asMap().entries.map((entry) {
+                    int index = entry.key;
+                    Course course = entry.value;
+                    bool isPreviousCourseCompleted = index == 0
+                        ? true // The first course is always accessible
+                        : widget.chapter.courses[index - 1].isCompleted; // Check if the previous course is completed
+                    return CourseListItem(
+                      course: course,
+                      userId: widget.userId,
+                      onCompletionChanged: () {
+                        _updateCompletedCourses();
+                        Provider.of<ContentProvider>(context, listen: false)
+                            .notifyListeners();
+                      },
+                      isPreviousCourseCompleted: isPreviousCourseCompleted, // Pass the status
+                    );
                   }).toList(),
                 ),
               ),

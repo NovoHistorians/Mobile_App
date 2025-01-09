@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../components/department_drpdown.dart';
+import '../components/error_message.dart';
 import '../components/level_dropdown.dart';
 import '../components/year_dropdown.dart';
 import '../data/level_years.dart';
@@ -95,6 +96,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     return CustomScaffold(
       title: "الملف الشخصي",
+      shouldPop: true, // Allow default back navigation
+      redirectToHome: true,
       body: Stack(
         children: [
           SingleChildScrollView(
@@ -807,55 +810,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
           if (_selectedDepartment != null) {
             user.department = _selectedDepartment!;
           } else {
-            showDialog(
-              context: context,
-              builder: (context) => Dialog(
-                backgroundColor: Colors.transparent,
-                child: Container(
-                  height: 250,
-                  padding: const EdgeInsets.all(16.0),
-                  decoration: BoxDecoration(
-                    color: Color(0xFFEBEBD3),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.warning,
-                        color: Color.fromARGB(255, 255, 0, 0),
-                        size: 50,
-                      ),
-                      SizedBox(height: 10),
-                      Text(
-                        'يرجى اختيار التخصص',
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF7A6C5D),
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      SizedBox(height: 20),
-                      ElevatedButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Color(0xFF7A6C5D),
-                          foregroundColor: Colors.white,
-                          minimumSize: Size(double.infinity, 50),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: Text(
-                          'حسناً',
-                          style: TextStyle(fontSize: 18, color: Colors.white),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+            SamsungNotification.show(
+              context,
+              message: 'يرجى اختيار التخصص',
+              icon: Icons.error_outline_outlined,
+              duration: const Duration(seconds: 5),
+              type: NotificationType.warning,
             );
             return;
           }
@@ -920,55 +880,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
         );
       }
     } else {
-      showDialog(
-        context: context,
-        builder: (context) => Dialog(
-          backgroundColor: Colors.transparent,
-          child: Container(
-            height: 250,
-            padding: const EdgeInsets.all(16.0),
-            decoration: BoxDecoration(
-              color: Color(0xFFEBEBD3),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.warning,
-                  color: Color.fromARGB(255, 255, 0, 0),
-                  size: 50,
-                ),
-                SizedBox(height: 10),
-                Text(
-                  'يرجى اختيار المستوى والسنة الدراسية',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF7A6C5D),
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                SizedBox(height: 20),
-                ElevatedButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Color(0xFF7A6C5D),
-                    foregroundColor: Colors.white,
-                    minimumSize: Size(double.infinity, 50),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: Text(
-                    'حسناً',
-                    style: TextStyle(fontSize: 18, color: Colors.white),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
+      SamsungNotification.show(
+        context,
+        message: 'يرجى اختيار المستوى والسنة الدراسية',
+        icon: Icons.error_outline_outlined,
+        duration: const Duration(seconds: 5),
+        type: NotificationType.warning,
       );
     }
   }

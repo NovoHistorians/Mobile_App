@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:lottie/lottie.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../components/error_message.dart';
 import '../models/chat_message_model.dart';
 import '../providers/chat_provider.dart';
 import '../providers/user_provider.dart';
@@ -87,7 +88,13 @@ class _ChatbotScreenContentState extends State<ChatbotScreenContent> {
           _hasMore = moreMessages.length >= _pageSize;
         }
       } catch (e) {
-        _showErrorSnackBar();
+        SamsungNotification.show(
+          context,
+          message: 'حدث خطأ. الرجاء المحاولة مرة أخرى',
+          icon: Icons.warning_amber_rounded,
+          duration: const Duration(seconds: 5),
+          type: NotificationType.error,
+        );
       } finally {
         setState(() => _isLoadingMore = false);
       }
@@ -102,15 +109,12 @@ class _ChatbotScreenContentState extends State<ChatbotScreenContent> {
   }
 
   void _showErrorSnackBar() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'حدث خطأ. الرجاء المحاولة مرة أخرى',
-          textAlign: TextAlign.right,
-          style: TextStyle(fontSize: 16),
-        ),
-        backgroundColor: Colors.red,
-      ),
+    SamsungNotification.show(
+      context,
+      message: 'حدث خطأ. الرجاء المحاولة مرة أخرى',
+      icon: Icons.warning_amber_rounded,
+      duration: const Duration(seconds: 5),
+      type: NotificationType.error,
     );
   }
 
@@ -157,6 +161,8 @@ class _ChatbotScreenContentState extends State<ChatbotScreenContent> {
   Widget build(BuildContext context) {
     return CustomScaffold(
       title: "مساعدك في التاريخ",
+      shouldPop: true, // Allow default back navigation
+      redirectToHome: true,
       body: Column(
         children: [
           Expanded(

@@ -7,6 +7,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return CustomScaffold(
       title: "سياسة الخصوصية",
+      shouldPop: false, // Allow default back navigation
       body: SingleChildScrollView(
         padding: EdgeInsets.all(16),
         child: Column(

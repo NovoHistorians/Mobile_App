@@ -12,7 +12,20 @@
           "package_name": "com.example.novo_historians"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "1058987748490-sq8cfnadfi4g15kqh0p4iujki17dvvc5.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.novo_historians",
+            "certificate_hash": "8c4bb36c67d6a0af62129013036ca9750acc7f2c"
+          }
+        },
+        {
+          "client_id": "1058987748490-eb5abcklga6rkf14gbdijp60rtth73ji.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyBADG3XG9xcnWglZ5oLP_HXz4K9TgJzEfY"
@@ -20,7 +33,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1058987748490-eb5abcklga6rkf14gbdijp60rtth73ji.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "1058987748490-bmenb64puphsmucshm9fsu6nbiaddujc.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.novoHistorians"
+              }
+            }
+          ]
         }
       }
     }

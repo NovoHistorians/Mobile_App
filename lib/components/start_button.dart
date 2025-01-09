@@ -11,7 +11,7 @@ class StartButton extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16.0), // Add padding
       child: ElevatedButton(
         onPressed: () {
-          Navigator.pushNamed(context, '/welcome');
+          Navigator.pushNamed(context, '/login'); // Navigate to LoginScreen
         },
         child: Text(
           'مرحبا بك',

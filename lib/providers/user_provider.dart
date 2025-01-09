@@ -2,15 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:hive/hive.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_model.dart';
-import '../services/notification_service.dart';
 
 class UserProvider with ChangeNotifier {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final StudyNotificationService _notificationService =
-      StudyNotificationService();
   UserModel? _user;
 
   UserModel? get user => _user;
@@ -22,15 +18,52 @@ class UserProvider with ChangeNotifier {
       if (userDoc.exists) {
         final userData = userDoc.data();
         print('User data from Firestore: $userData');
-        print('User data type: ${userData.runtimeType}');
 
         // Explicitly cast the data to Map<String, dynamic>
-        final castedData = userData as Map<String, dynamic>;
+        final castedData =
+            Map<String, dynamic>.from(userData as Map<dynamic, dynamic>);
         _user = UserModel.fromJson(castedData);
+
+        // Cache the user data locally
+        final box = await Hive.openBox('userBox');
+        await box.put('userData', _user!.toJson());
+
         notifyListeners();
       }
     } catch (e) {
       print('Error loading user data: $e');
+    }
+  }
+
+  Future<void> initializeUser() async {
+    try {
+      // Check if user is already logged in
+      final currentUser = _auth.currentUser;
+      if (currentUser != null) {
+        // Load user data from Firestore
+        await loadUserData(currentUser.uid);
+
+        // Sync any offline data
+        await syncOfflineData();
+      }
+    } catch (e) {
+      print('Error initializing user: $e');
+      _user = null;
+    }
+    notifyListeners();
+  }
+
+  Future<void> syncOfflineData() async {
+    if (_user == null) return;
+
+    final box = await Hive.openBox('userBox');
+    final offlineData = box.get('userData');
+    print('Offline data from Hive: $offlineData');
+
+    if (offlineData != null && offlineData is Map<String, dynamic>) {
+      await _firestore.collection('users').doc(_user!.id).update(offlineData);
+    } else {
+      print('Invalid offline data format');
     }
   }
 
@@ -55,22 +88,10 @@ class UserProvider with ChangeNotifier {
         chapters: [],
         progress: {},
         studySessions: [],
+        totalStars: 0,
       );
 
       await _firestore.collection('users').doc(user.id).set(user.toJson());
-
-      // Create progress subcollection
-      await _firestore
-          .collection('users')
-          .doc(user.id)
-          .collection('progress')
-          .doc('overview')
-          .set({
-        'lastAccessed': DateTime.now(),
-        'completedCourses': 0,
-        'totalQuizScore': 0,
-        'studyStreak': 0,
-      });
 
       _user = user;
       notifyListeners();
@@ -91,22 +112,6 @@ class UserProvider with ChangeNotifier {
     // Cache chapters for offline access
     final chaptersBox = await Hive.openBox('chaptersBox');
     await chaptersBox.put('userChapters', user.chapters);
-  }
-
-  Future<void> syncOfflineData() async {
-    if (_user == null) return;
-
-    final box = await Hive.openBox('userBox');
-    final offlineData = box.get('userData');
-    print('Offline data from Hive: $offlineData');
-    print('Offline data type: ${offlineData.runtimeType}');
-
-    if (offlineData != null) {
-      // Explicitly cast the data to Map<String, dynamic>
-      final userData =
-          Map<String, dynamic>.from(offlineData as Map<dynamic, dynamic>);
-      await _firestore.collection('users').doc(_user!.id).update(userData);
-    }
   }
 
   // Log in an existing user
@@ -168,7 +173,11 @@ class UserProvider with ChangeNotifier {
 
       // Update Firestore
       await _firestore.collection('users').doc(_user!.id).update({
-        'progress.$courseId': completion,
+        'progress.$courseId': {
+          'isCompleted': true,
+          'completion': completion,
+          'lastUpdated': DateTime.now().toIso8601String(),
+        },
       });
 
       // Update local storage
@@ -182,47 +191,26 @@ class UserProvider with ChangeNotifier {
     }
   }
 
-  Future<void> initializeUser() async {
-    try {
-      // Check if user is already logged in
-      final currentUser = _auth.currentUser;
-      if (currentUser != null) {
-        // Load user data from Firestore
-        await loadUserData(currentUser.uid);
-
-        // Sync any offline data
-        await syncOfflineData();
-      }
-    } catch (e) {
-      print('Error initializing user: $e');
-      _user = null;
-    }
-    notifyListeners();
-  }
-
-  // Schedule user notifications
-  Future<void> _scheduleUserNotifications() async {
+  Future<void> updateTotalStars(int newStars) async {
     if (_user == null) return;
 
-    final prefs = await SharedPreferences.getInstance();
-    final studyRemindersEnabled = prefs.getBool('study_reminders') ?? true;
+    try {
+      // Update local state
+      _user!.updateTotalStars(newStars);
 
-    if (studyRemindersEnabled) {
-      // Schedule morning reminder
-      final morningHour = prefs.getInt('morning_reminder_hour') ?? 10;
-      final morningMinute = prefs.getInt('morning_reminder_minute') ?? 0;
-      await _notificationService.scheduleDailyStudyReminder(
-        TimeOfDay(hour: morningHour, minute: morningMinute),
-        type: 'morning',
-      );
+      // Update Firestore
+      await _firestore.collection('users').doc(_user!.id).update({
+        'totalStars': newStars,
+      });
 
-      // Schedule evening reminder
-      final eveningHour = prefs.getInt('evening_reminder_hour') ?? 18;
-      final eveningMinute = prefs.getInt('evening_reminder_minute') ?? 0;
-      await _notificationService.scheduleDailyStudyReminder(
-        TimeOfDay(hour: eveningHour, minute: eveningMinute),
-        type: 'evening',
-      );
+      // Update local storage
+      final box = await Hive.openBox('userBox');
+      await box.put('userData', _user!.toJson());
+
+      notifyListeners();
+    } catch (e) {
+      print('Error updating total stars: $e');
+      throw e;
     }
   }
 }
