@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:novo_historians/providers/progress_provider.dart';
 import 'package:provider/provider.dart';
+import '../components/error_message.dart';
 import '../models/course_model.dart';
 import '../providers/quiz_provider.dart';
 import '../providers/user_provider.dart';
@@ -47,14 +49,12 @@ class _FlashcardPageState extends State<FlashcardPage> {
       }
     } catch (e) {
       developer.log('Error generating quiz: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'حدث خطأ في توليد الاختبار',
-            textAlign: TextAlign.right,
-          ),
-          backgroundColor: Colors.red,
-        ),
+      SamsungNotification.show(
+        context,
+        message: 'حدث خطأ في تحميل الاختبار',
+        icon: Icons.warning_amber_rounded,
+        duration: const Duration(seconds: 5),
+        type: NotificationType.error,
       );
     }
     setState(() => _isGeneratingQuiz = false);
@@ -85,14 +85,12 @@ class _FlashcardPageState extends State<FlashcardPage> {
       );
     } catch (e) {
       developer.log('Error navigating to QuizPage: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'حدث خطأ في تحميل الاختبار',
-            textAlign: TextAlign.right,
-          ),
-          backgroundColor: Colors.red,
-        ),
+      SamsungNotification.show(
+        context,
+        message: 'حدث خطأ في تحميل الاختبار',
+        icon: Icons.warning_amber_rounded,
+        duration: const Duration(seconds: 5),
+        type: NotificationType.error,
       );
     }
   }
@@ -111,7 +109,10 @@ class _FlashcardPageState extends State<FlashcardPage> {
       final user = Provider.of<UserProvider>(context, listen: false).user;
       if (user != null) {
         final quizProvider = Provider.of<QuizProvider>(context, listen: false);
+        final progressProvider =
+            Provider.of<ProgressProvider>(context, listen: false);
         try {
+          await progressProvider.resetProgress(user.id, widget.course.id, user);
           final quiz = await quizProvider.getQuizForCourse(
             widget.course.id,
             widget.course.content,
@@ -131,14 +132,12 @@ class _FlashcardPageState extends State<FlashcardPage> {
           );
         } catch (e) {
           developer.log('Error navigating to QuizPage: $e');
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'حدث خطأ في تحميل الاختبار',
-                textAlign: TextAlign.right,
-              ),
-              backgroundColor: Colors.red,
-            ),
+          SamsungNotification.show(
+            context,
+            message: 'حدث خطأ في تحميل الاختبار',
+            icon: Icons.warning_amber_rounded,
+            duration: const Duration(seconds: 5),
+            type: NotificationType.error,
           );
         }
       }
@@ -165,6 +164,8 @@ class _FlashcardPageState extends State<FlashcardPage> {
 
     return CustomScaffold(
       title: "البطاقات",
+      shouldPop: true, // Allow default back navigation
+      redirectToHome: false,
       body: Column(
         children: [
           SizedBox(height: 20),

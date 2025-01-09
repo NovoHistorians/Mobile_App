@@ -55,7 +55,7 @@ class FirebaseInitService {
     }
   }
 
-  Future<bool> checkInitializationStatus() async {
+  Future<bool> isDatabaseInitialized() async {
     try {
       final snapshot = await _firestore.collection('education').get();
       return snapshot.docs.isNotEmpty;

@@ -1,8 +1,7 @@
-// providers/auth_provider.dart
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:hive/hive.dart';
+
 import '../models/user_model.dart';
 
 class AuthProvider with ChangeNotifier {
@@ -21,13 +20,11 @@ class AuthProvider with ChangeNotifier {
     String? department,
   }) async {
     try {
-      // Create Firebase Auth user
       final userCredential = await _auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
 
-      // Create user model
       final user = UserModel(
         id: userCredential.user!.uid,
         email: email,
@@ -41,12 +38,7 @@ class AuthProvider with ChangeNotifier {
         studySessions: [],
       );
 
-      // Save to Firestore
       await _firestore.collection('users').doc(user.id).set(user.toJson());
-
-      // Save locally
-      final box = await Hive.openBox('authBox');
-      await box.put('currentUser', user.toJson());
 
       _currentUser = user;
       notifyListeners();
@@ -63,7 +55,6 @@ class AuthProvider with ChangeNotifier {
         password: password,
       );
 
-      // Fetch user data from Firestore
       final userDoc = await _firestore
           .collection('users')
           .doc(userCredential.user!.uid)
@@ -74,11 +65,6 @@ class AuthProvider with ChangeNotifier {
       }
 
       _currentUser = UserModel.fromJson(userDoc.data()!);
-
-      // Save locally
-      final box = await Hive.openBox('authBox');
-      await box.put('currentUser', _currentUser!.toJson());
-
       notifyListeners();
     } catch (e) {
       print('Error during signin: $e');
@@ -90,11 +76,6 @@ class AuthProvider with ChangeNotifier {
     try {
       await _auth.signOut();
       _currentUser = null;
-
-      // Clear local data
-      final box = await Hive.openBox('authBox');
-      await box.clear();
-
       notifyListeners();
     } catch (e) {
       print('Error during signout: $e');

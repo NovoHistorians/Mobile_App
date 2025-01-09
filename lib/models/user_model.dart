@@ -12,7 +12,7 @@ class UserModel with ChangeNotifier {
   List<Chapter> _chapters;
   Map<String, dynamic> _progress; // Added progress tracking
   List<DateTime> _studySessions;
-
+  int totalStars;
   UserModel({
     required String id,
     required String email,
@@ -24,6 +24,7 @@ class UserModel with ChangeNotifier {
     required List<Chapter> chapters,
     Map<String, dynamic>? progress,
     List<DateTime>? studySessions,
+    this.totalStars = 0,
   })  : _id = id,
         _email = email,
         _name = name,
@@ -76,6 +77,17 @@ class UserModel with ChangeNotifier {
     notifyListeners();
   }
 
+  int get completedCourses {
+    return _progress.values
+        .where((progress) => progress['isCompleted'] == true)
+        .length;
+  }
+
+  int get totalQuizScore {
+    return _progress.values
+        .fold(0, (sum, progress) => sum + (progress['score'] as int? ?? 0));
+  }
+
   @override
   Map<String, dynamic> toJson() {
     return {
@@ -111,16 +123,29 @@ class UserModel with ChangeNotifier {
               ?.map((date) => DateTime.parse(date))
               .toList() ??
           [],
+      totalStars: json['totalStars'] ?? 0, // Initialize totalStars from JSO
     );
   }
 
   void updateProgress(String courseId, double completion) {
-    _progress[courseId] = completion;
+    _progress[courseId] = {
+      'isCompleted': true,
+      'completion': completion,
+      'lastUpdated': DateTime.now().toIso8601String(),
+    };
     notifyListeners();
   }
 
   void addStudySession(DateTime session) {
     _studySessions.add(session);
     notifyListeners();
+  }
+
+  void updateTotalStars(int newStars) {
+    totalStars = newStars;
+  }
+
+  int get totalNumberOfStars {
+    return totalStars;
   }
 }

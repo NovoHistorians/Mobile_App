@@ -1,8 +1,11 @@
 import 'package:audioplayers/audioplayers.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:novo_historians/screens/home_screen.dart';
 import 'package:provider/provider.dart';
+import '../components/error_message.dart';
 import '../models/quiz_model.dart';
+import '../providers/content_provider.dart';
 import '../providers/progress_provider.dart';
 import '../providers/quiz_provider.dart';
 import '../providers/user_provider.dart';
@@ -35,28 +38,56 @@ class _QuizPageState extends State<QuizPage> {
   }
 
   @override
-  void dispose() {
-    _audioPlayer.dispose();
-    final user = Provider.of<UserProvider>(context, listen: false).user;
-    if (_score == widget.quiz.questions.length && user != null) {
-      Provider.of<QuizProvider>(context, listen: false).removeQuiz(
-        widget.course.id,
-        user.level,
-        user.year,
-      );
+  /*void dispose() async {
+    try {
+      _audioPlayer.dispose();
+      final user = Provider.of<UserProvider>(context, listen: false).user;
 
-      final completion = (_score / widget.quiz.questions.length) * 100;
+      // Only proceed if the quiz is completed with full score and user exists
+      if (user != null) {
+        // Remove quiz first
+        await Provider.of<QuizProvider>(context, listen: false).removeQuiz(
+          widget.course.id,
+          user.level,
+          user.year,
+        );
 
-      // Update progress with course completion
-      Provider.of<ProgressProvider>(context, listen: false).trackProgress(
-        userId: user.id,
-        courseId: widget.course.id,
-        completion: completion,
-        quizScore: _score,
-      );
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.id)
+            .collection('progress')
+            .doc(widget.course.id)
+            .set({
+          'isCompleted': false,
+          'quizScore': 0,
+          'lastUpdated': DateTime.now().toIso8601String(),
+        }, SetOptions(merge: true));
+
+        // Calculate completion percentage
+        final completion = (_score / 5) * 100;
+
+        // Use the new centralized method
+        await Provider.of<ProgressProvider>(context, listen: false)
+            .completeCourse(
+          userId: user.id,
+          course: widget.course,
+          completion: completion,
+          quizScore: _score,
+          user: user,
+        );
+
+        setState(() {
+          widget.course.isCompleted = true;
+          widget.course.quiz.score = _score;
+        });
+      }
+    } catch (e) {
+      print('Error in dispose: $e');
+      // We don't want to show UI errors during dispose
+    } finally {
+      super.dispose();
     }
-    super.dispose();
-  }
+  }*/
 
   Future<void> _initAudio() async {
     // Pre-load audio files
@@ -117,37 +148,81 @@ class _QuizPageState extends State<QuizPage> {
         _selectedChoice = null;
       });
     } else {
-      _handleQuizCompletion();
+      _handleQuizCompletion(); // Ensure this is called
     }
   }
 
+  int calculateStars(int score) {
+    final percentage = (score / 5) * 100;
+    if (percentage >= 80) return 3;
+    if (percentage >= 60) return 2;
+    if (percentage >= 40) return 1;
+    return 0;
+  }
+
   void _handleQuizCompletion() async {
-    _playSound('complete');
-    final user = Provider.of<UserProvider>(context, listen: false).user;
+    try {
+      final user = Provider.of<UserProvider>(context, listen: false).user;
 
-    if (user != null) {
-      // Calculate final completion percentage
-      final completion = (_score / widget.quiz.questions.length) * 100;
+      if (user != null) {
+        await Provider.of<QuizProvider>(context, listen: false).removeQuiz(
+          widget.course.id,
+          user.level,
+          user.year,
+        );
 
-      // Update course completion status
-      widget.course.markAsCompleted();
-      widget.quiz.score = _score;
+        final starsEarned = calculateStars(_score);
 
-      // Update progress in database
-      await Provider.of<ProgressProvider>(context, listen: false).trackProgress(
-        userId: user.id,
-        courseId: widget.course.id,
-        completion: completion,
-        quizScore: _score,
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.id)
+            .collection('progress')
+            .doc(widget.course.id)
+            .set({
+          'isCompleted': false,
+          'quizScore': 0,
+          'lastUpdated': DateTime.now().toIso8601String(),
+        }, SetOptions(merge: true));
+
+        final completion = (_score / 5) * 100;
+
+        // Use the new centralized method
+        await Provider.of<ProgressProvider>(context, listen: false)
+            .completeCourse(
+          userId: user.id,
+          course: widget.course,
+          completion: completion,
+          quizScore: _score,
+          user: user,
+          stars: starsEarned,
+        );
+
+        final userProvider = Provider.of<UserProvider>(context, listen: false);
+        final newTotalStars = user.totalStars + starsEarned;
+        await userProvider.updateTotalStars(newTotalStars);
+
+        // Refresh the UI
+        setState(() {
+          widget.course.isCompleted = true;
+          widget.course.quiz.score = _score;
+        });
+
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => _buildCompletionDialog(),
+        );
+      }
+    } catch (e) {
+      print('Error handling quiz completion: $e');
+      SamsungNotification.show(
+        context,
+        message: 'عذرا حدث خطأ غير متوقع',
+        icon: Icons.warning_amber_rounded,
+        duration: const Duration(seconds: 5),
+        type: NotificationType.error,
       );
     }
-
-    // Show completion dialog
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => _buildCompletionDialog(),
-    );
   }
 
   Widget _buildCustomDialog(bool isCorrect) {
@@ -289,11 +364,12 @@ class _QuizPageState extends State<QuizPage> {
     developer
         .log('Quiz received with ${widget.quiz.questions.length} questions');
 
-    double progress =
-        (_currentQuestionIndex + 1) / widget.quiz.questions.length;
+    double progress = (_currentQuestionIndex) / widget.quiz.questions.length;
 
     return CustomScaffold(
       title: "الأسئلة",
+      shouldPop: false, // Allow default back navigation
+      redirectToHome: true,
       body: Column(
         children: [
           SizedBox(height: 20),

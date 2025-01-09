@@ -1,7 +1,7 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import '../components/error_message.dart';
 import '../screens/flashcard_screen.dart';
-import '../services/notification_service.dart';
-import '../widgets/study_tracker.dart';
 import 'quiz_model.dart';
 
 class Course {
@@ -21,17 +21,27 @@ class Course {
     required this.quiz,
   });
 
-  void markAsCompleted() async {
-    isCompleted = true;
-    quiz.score =
-        quiz.questions.length; // Update the score to full marks on completion
-    // Record study session and check streak
-    await StudyTracker.recordStudySession();
-    final streak = await StudyTracker.getStudyStreak();
+  Future<void> fetchUserProgress(String userId) async {
+    try {
+      final progressDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .collection('progress')
+          .doc(id)
+          .get();
 
-    if (streak > 0 && streak % 3 == 0) {
-      // Notify every 3 days of streak
-      await StudyNotificationService().notifyStudyStreak(streak);
+      if (progressDoc.exists) {
+        final progressData = progressDoc.data()!;
+        isCompleted = progressData['isCompleted'] ?? false;
+        quiz.score = progressData['quizScore'] ?? 0;
+      } else {
+        isCompleted = false; // Default to not completed if no progress exists
+        quiz.score = 0; // Default to 0 score if no quiz data exists
+      }
+    } catch (e) {
+      print('Error fetching user progress: $e');
+      isCompleted = false; // Fallback in case of error
+      quiz.score = 0; // Fallback in case of error
     }
   }
 
@@ -58,79 +68,130 @@ class Course {
   }
 }
 
-class CourseListItem extends StatelessWidget {
+class CourseListItem extends StatefulWidget {
   final Course course;
+  final String userId;
+  final VoidCallback? onCompletionChanged;
+  final bool isPreviousCourseCompleted; // Add this parameter
 
-  CourseListItem({required this.course});
+  CourseListItem({
+    required this.course,
+    required this.userId,
+    this.onCompletionChanged,
+    required this.isPreviousCourseCompleted, // Add this parameter
+  });
+
+  @override
+  _CourseListItemState createState() => _CourseListItemState();
+}
+
+class _CourseListItemState extends State<CourseListItem> {
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchCourseProgress();
+  }
+
+  Future<void> _fetchCourseProgress() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    await widget.course.fetchUserProgress(widget.userId);
+
+    setState(() {
+      _isLoading = false;
+    });
+
+    // Notify parent about completion status change
+    if (widget.onCompletionChanged != null) {
+      widget.onCompletionChanged!();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => FlashcardPage(course: course),
-          ),
-        );
-      },
+      onTap: widget.isPreviousCourseCompleted
+          ? () async {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => FlashcardPage(course: widget.course),
+                ),
+              );
+            }
+          : () {
+              SamsungNotification.show(
+                context,
+                message: 'يجب إكمال الدرس السابق قبل البدء في هذا الدرس',
+                icon: Icons.error_outline,
+                duration: const Duration(seconds: 3),
+              );
+            }, // Disable navigation if previous course is not completed
       child: Container(
         margin: EdgeInsets.symmetric(horizontal: 5, vertical: 5),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Row(
-              children: [
-                Icon(Icons.chevron_left_rounded, color: Colors.black, size: 40),
-                if (course.isCompleted)
-                  Container(
-                    alignment: Alignment.topCenter,
-                    child: Text(
-                      'النتيجة: ${course.quiz.score}/${course.quiz.questions.length}',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.green[800],
+            _isLoading
+                ? CircularProgressIndicator()
+                : Row(
+                    children: [
+                      Icon(Icons.chevron_left_rounded,
+                          color: Colors.black, size: 40),
+                      // Always show the StarRating widget
+                      Container(
+                        alignment: Alignment.topCenter,
+                        child: StarRating(
+                          score: widget.course.quiz.score,
+                          totalQuestions: widget.course.quiz.questions.length,
+                          isCompleted:
+                              widget.course.isCompleted, // Pass isCompleted
+                        ),
                       ),
-                    ),
-                  ),
-                Expanded(
-                  child: Container(
-                    padding: EdgeInsets.symmetric(vertical: 10, horizontal: 15),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          'الوضعية التعليمية ${course.number}',
-                          textDirection: TextDirection.rtl,
-                          style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.normal,
-                              color: Color(0xFF999999)),
+                      Expanded(
+                        child: Container(
+                          padding: EdgeInsets.symmetric(
+                              vertical: 10, horizontal: 15),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                'الوضعية التعليمية ${widget.course.number}',
+                                textDirection: TextDirection.rtl,
+                                style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.normal,
+                                    color: Color(0xFF999999)),
+                              ),
+                              Text(
+                                widget.course.title,
+                                textDirection: TextDirection.rtl,
+                                style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF000000)),
+                              ),
+                            ],
+                          ),
                         ),
-                        Text(
-                          course.title,
-                          textDirection: TextDirection.rtl,
-                          style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF000000)),
-                        ),
-                      ],
-                    ),
+                      ),
+                      Column(
+                        children: [
+                          _isLoading
+                              ? CircularProgressIndicator() // Show loading indicator
+                              : CustomPaint(
+                                  size: Size(50, 50),
+                                  painter: ProgressCirclePainter(
+                                      isCompleted: widget.course.isCompleted),
+                                ),
+                        ],
+                      ),
+                    ],
                   ),
-                ),
-                Column(
-                  children: [
-                    CustomPaint(
-                      size: Size(50, 50),
-                      painter: ProgressCirclePainter(
-                          isCompleted: course.isCompleted),
-                    ),
-                  ],
-                ),
-              ],
-            ),
           ],
         ),
       ),
@@ -181,5 +242,42 @@ class ProgressCirclePainter extends CustomPainter {
   @override
   bool shouldRepaint(CustomPainter oldDelegate) {
     return false;
+  }
+}
+
+class StarRating extends StatelessWidget {
+  final int score;
+  final int totalQuestions;
+  final bool isCompleted; // Add isCompleted parameter
+
+  StarRating({
+    required this.score,
+    required this.totalQuestions,
+    required this.isCompleted, // Pass isCompleted from CourseListItem
+  });
+
+  int get starCount {
+    if (!isCompleted) return 0; // Return 0 stars if the course is not completed
+    final percentage = (score / 5) * 100;
+    if (percentage >= 80) return 3;
+    if (percentage >= 60) return 2;
+    if (percentage >= 40) return 1;
+    return 0;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List.generate(3, (index) {
+        return Icon(
+          Icons.star,
+          size: 20,
+          color: index < starCount
+              ? Color(0xFFFFD700) // Gold color for filled stars
+              : Colors.grey.withOpacity(0.3), // Grey for empty stars
+        );
+      }),
+    );
   }
 }

@@ -1,14 +1,13 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../components/department_drpdown.dart';
+import '../components/error_message.dart';
 import '../components/level_dropdown.dart';
 import '../components/name_input.dart';
 import '../components/welcome_message.dart';
 import '../components/year_dropdown.dart';
-import '../data/level_years.dart';
 import '../providers/user_provider.dart';
-import '../models/user_model.dart';
 import '../services/load_data.dart';
 
 class WelcomeScreen extends StatefulWidget {
@@ -23,15 +22,11 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   List<String> _departments = [];
   bool _isLoading = true;
   final _nameController = TextEditingController();
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
   String? _selectedLevel;
   String? _selectedYear;
   String? _selectedDepartment;
   String? _departmentError;
   String? _nameError;
-  String? _emailError;
-  String? _passwordError;
   String? _levelError;
   String? _yearError;
 
@@ -83,14 +78,6 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   void _validateInputs() {
     setState(() {
       _nameError = _nameController.text.isEmpty ? 'يرجى إدخال اسمك' : null;
-      _emailError =
-          _emailController.text.isEmpty || !_emailController.text.contains('@')
-              ? 'يرجى إدخال بريد إلكتروني صحيح'
-              : null;
-      _passwordError = _passwordController.text.isEmpty ||
-              _passwordController.text.length < 6
-          ? 'كلمة المرور يجب أن تكون على الأقل 6 أحرف'
-          : null;
       _levelError =
           _selectedLevel == null ? 'يرجى اختيار المستوى الدراسي' : null;
       _yearError = _selectedYear == null ? 'يرجى اختيار السنة الدراسية' : null;
@@ -98,6 +85,41 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
           ? 'يرجى اختيار التخصص'
           : null;
     });
+
+    if (_nameError == null && _levelError == null && _yearError == null) {
+      // Save user data and navigate to HomeScreen
+      _saveUserDataAndNavigate();
+    }
+  }
+
+  Future<void> _saveUserDataAndNavigate() async {
+    try {
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
+      final user = userProvider.user;
+
+      if (user != null) {
+        // Update user data with the selected level, year, and department
+        user.name = _nameController.text;
+        user.level = _selectedLevel!;
+        user.year = _selectedYear!;
+        user.department = _selectedDepartment ?? '';
+
+        // Save updated user data to Firestore
+        await userProvider.updateUser(user);
+
+        // Navigate to HomeScreen
+        Navigator.pushReplacementNamed(context, '/home');
+      }
+    } catch (e) {
+      print('Error saving user data: $e');
+      SamsungNotification.show(
+        context,
+        message: 'حدث خطأ أثناء حفظ البيانات',
+        icon: Icons.warning_amber_rounded,
+        duration: const Duration(seconds: 5),
+        type: NotificationType.error,
+      );
+    }
   }
 
   bool _shouldShowDepartment() {
@@ -130,31 +152,6 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
               if (_nameError != null)
                 Text(
                   _nameError!,
-                  style: TextStyle(color: Colors.red, fontSize: 14),
-                  textDirection: TextDirection.rtl,
-                ),
-              SizedBox(height: 20),
-              NameInput(
-                controller: _emailController,
-                hintText: 'ادخل بريدك الإلكتروني',
-                labelText: 'البريد الإلكتروني',
-              ),
-              if (_emailError != null)
-                Text(
-                  _emailError!,
-                  style: TextStyle(color: Colors.red, fontSize: 14),
-                  textDirection: TextDirection.rtl,
-                ),
-              SizedBox(height: 20),
-              NameInput(
-                controller: _passwordController,
-                hintText: 'ادخل كلمة المرور',
-                labelText: 'كلمة المرور',
-                isPassword: true,
-              ),
-              if (_passwordError != null)
-                Text(
-                  _passwordError!,
                   style: TextStyle(color: Colors.red, fontSize: 14),
                   textDirection: TextDirection.rtl,
                 ),
@@ -215,49 +212,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
               Padding(
                 padding: const EdgeInsets.only(bottom: 20),
                 child: ElevatedButton(
-                  onPressed: () async {
-                    _validateInputs();
-                    if (_nameError == null &&
-                        _emailError == null &&
-                        _passwordError == null &&
-                        _levelError == null &&
-                        _yearError == null) {
-                      try {
-                        final auth = FirebaseAuth.instance;
-                        final methods = await auth
-                            .fetchSignInMethodsForEmail(_emailController.text);
-                        if (methods.isNotEmpty) {
-                          // User already exists, log them in
-                          await Provider.of<UserProvider>(context,
-                                  listen: false)
-                              .login(
-                            _emailController.text,
-                            _passwordController.text,
-                          );
-                        } else {
-                          // User does not exist, create a new account
-                          await Provider.of<UserProvider>(context,
-                                  listen: false)
-                              .signUp(
-                            _emailController.text,
-                            _passwordController.text,
-                            _nameController.text,
-                            _selectedLevel!,
-                            _selectedYear!,
-                            _selectedDepartment,
-                          );
-                        }
-                        // Navigate to the home screen
-                        Navigator.pushNamed(context, '/home');
-                      } catch (e) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('حدث خطأ: $e'),
-                          ),
-                        );
-                      }
-                    }
-                  },
+                  onPressed: _validateInputs,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Color(0xFF7A6C5D),
                     padding: EdgeInsets.symmetric(vertical: 10),
@@ -282,23 +237,5 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
         ),
       ),
     );
-  }
-
-  List<String> _getDepartmentsForLevel() {
-    if (_selectedLevel == 'الثانوي') {
-      return _selectedYear == 'الأولى ثانوي'
-          ? ['علمي', 'أدبي']
-          : [
-              'رياضيات',
-              'علوم تجريبية',
-              'تقني رياضي',
-              'تسيير وإقتصاد',
-              'آداب وفلسفة',
-              'لغات أجنبية'
-            ];
-    } else if (_selectedLevel == 'الجامعي') {
-      return ['تاريخ', 'علوم سياسية', 'علوم إجتماعية', 'فلسفة', 'علوم إنسانية'];
-    }
-    return [];
   }
 }

@@ -9,13 +9,13 @@ class LogoDisplay extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Image.asset('assets/images/logo_novo.png',
-            height: 500), // Add your logo here
-        //SizedBox(height: 20),
-        /*Text(
-          'تعلم تاريخ الجزائر بطريقة فعالة',
-          style: TextStyle(fontSize: 24, color: Colors.black),
+            height: 250), // Add your logo here
+        SizedBox(height: 10),
+        Text(
+          'تاريخنا.. إرثٌ يجمعنا ويُرشد طريقنا',
+          style: TextStyle(fontSize: 24, color: Colors.white),
           textAlign: TextAlign.center,
-        ),*/
+        ),
       ],
     );
   }

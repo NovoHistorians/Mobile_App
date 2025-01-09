@@ -7,6 +7,8 @@ class HelpSupportScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return CustomScaffold(
       title: "المساعدة والدعم",
+      shouldPop: true, // Allow default back navigation
+      redirectToHome: false,
       body: SingleChildScrollView(
         padding: EdgeInsets.all(16),
         child: Column(

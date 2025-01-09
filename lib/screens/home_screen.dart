@@ -4,6 +4,7 @@ import 'package:novo_historians/screens/chatbot_screen.dart';
 import 'package:provider/provider.dart';
 import '../models/chapter_model.dart';
 import '../providers/content_provider.dart';
+import '../providers/progress_provider.dart';
 import '../providers/user_provider.dart';
 import '../models/user_model.dart';
 import '../services/notification_service.dart';
@@ -19,6 +20,8 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isLoading = true;
   List<Chapter> _chapters = [];
   String _loadingMessage = 'جاري التحميل...';
+  int _totalStars = 0;
+
   @override
   void initState() {
     super.initState();
@@ -37,6 +40,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
       if (userProvider.user != null) {
         await _loadContent();
+        _calculateTotalStars();
       }
 
       stopwatch.stop();
@@ -76,6 +80,18 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _calculateTotalStars() async {
+    final user = Provider.of<UserProvider>(context, listen: false).user;
+    final progressProvider =
+        Provider.of<ProgressProvider>(context, listen: false);
+    final totalStars = await user!.totalNumberOfStars;
+    if (user != null) {
+      setState(() {
+        _totalStars = totalStars;
+      });
+    }
+  }
+
   Future<void> _initializeNotifications() async {
     final notificationService = StudyNotificationService();
     await notificationService.initializeNotifications();
@@ -111,8 +127,10 @@ class _HomeScreenState extends State<HomeScreen> {
     if (user == null) {
       return Center(child: Text('No user data available'));
     }
+
     return CustomScaffold(
       title: "الدروس",
+      shouldPop: false, // Allow default back navigation
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -121,25 +139,29 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.pushNamed(context, '/welcome');
-                  },
-                  style: ElevatedButton.styleFrom(
-                    padding: EdgeInsets.symmetric(horizontal: 30, vertical: 5),
-                    backgroundColor: Color(0xFF7A6C5D),
-                    textStyle: TextStyle(fontSize: 20),
-                  ),
-                  child: Text(
-                    'تغيير',
-                    textDirection: TextDirection.rtl,
-                    style: TextStyle(fontSize: 15, color: Color(0xFFFFFFFF)),
-                  ),
+                Row(
+                  children: [
+                    Icon(Icons.star, color: Colors.amber, size: 30),
+                    SizedBox(width: 8),
+                    Text(
+                      '$_totalStars',
+                      style:
+                          TextStyle(fontSize: 25, fontWeight: FontWeight.w800),
+                    ),
+                  ],
                 ),
-                Text(
-                  'السنة ${user.year}',
-                  style: TextStyle(fontSize: 25, fontWeight: FontWeight.w800),
-                  textDirection: TextDirection.rtl,
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      'السنة ${user.year}',
+                      style: TextStyle(
+                        fontSize: 25,
+                        fontWeight: FontWeight.w800,
+                      ),
+                      textDirection: TextDirection.rtl,
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -148,7 +170,14 @@ class _HomeScreenState extends State<HomeScreen> {
             child: ListView.builder(
               itemCount: _chapters.length,
               itemBuilder: (context, index) {
-                return ChapterCard(chapter: _chapters[index]);
+                return Consumer<ProgressProvider>(
+                  builder: (context, progressProvider, child) {
+                    return ChapterCard(
+                      chapter: _chapters[index],
+                      userId: user.id,
+                    );
+                  },
+                );
               },
             ),
           ),
