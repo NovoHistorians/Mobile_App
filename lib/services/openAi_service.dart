@@ -3,7 +3,7 @@ import 'dart:convert';
 
 class OpenAIService {
   final String apiKey;
-  final String baseUrl = 'http://172.28.0.12:5000/query';
+  final String baseUrl = 'https://5cb2-34-124-132-94.ngrok-free.app/query';
 
   OpenAIService(this.apiKey);
 
