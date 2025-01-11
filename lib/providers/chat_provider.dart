@@ -26,7 +26,7 @@ class ChatProvider with ChangeNotifier {
         timestamp: DateTime.now(),
       );
 
-      // Save to Firestore with TTL
+      // Save message to Firestore with TTL
       await _firestore
           .collection('users')
           .doc(userId)
@@ -45,8 +45,18 @@ class ChatProvider with ChangeNotifier {
         notifyListeners();
 
         try {
-          // Get AI response
-          final response = await _openAIService.getResponse(text);
+          // Fetch the user's level from Firestore
+          final userDoc =
+              await _firestore.collection('users').doc(userId).get();
+          final level = userDoc.data()?['year'] as String?;
+
+          if (level == null || level.isEmpty) {
+            throw Exception('User year is missing or invalid.');
+          }
+
+          // Get AI response using the retrieved level
+          final response = await _openAIService.getResponse(text, level);
+
           _isTyping = false;
           await addMessage(userId, response, false);
         } catch (e) {
