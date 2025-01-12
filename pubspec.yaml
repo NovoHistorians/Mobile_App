@@ -49,6 +49,7 @@ flutter:
     - assets/sounds/
     - assets/images/ic_launcher_adaptive_back.png
     - assets/images/ic_launcher_adaptive_fore.png
+    - assets/avatars/avatar_default.png
 
 flutter_icons:
   android: true

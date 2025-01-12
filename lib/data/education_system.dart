@@ -12,20 +12,32 @@ class EducationLevel {
 
 class YearStructure {
   final String name;
-  final List<String> departments;
-  final List<Semester> semesters;
+  final Map<String, List<Semester>>? departments;
+  final List<Semester>? semesters;
 
   YearStructure({
     required this.name,
-    required this.departments,
-    required this.semesters,
-  });
+    this.departments,
+    this.semesters,
+  }) : assert(
+          (departments == null && semesters != null) ||
+              (departments != null && semesters == null),
+          'A year must have either departments or semesters, but not both.',
+        );
 
-  Map<String, dynamic> toJson() => {
-        'name': name,
-        'departments': departments,
-        'semesters': semesters.map((s) => s.toJson()).toList(),
-      };
+  Map<String, dynamic> toJson() {
+    final Map<String, dynamic> data = {
+      'name': name,
+    };
+    if (departments != null) {
+      data['departments'] = departments!
+          .map((k, v) => MapEntry(k, v.map((s) => s.toJson()).toList()));
+    }
+    if (semesters != null) {
+      data['semesters'] = semesters!.map((s) => s.toJson()).toList();
+    }
+    return data;
+  }
 }
 
 class Semester {
@@ -59,7 +71,7 @@ class ChapterStructure {
 
 class CourseStructure {
   final String name;
-  final String content;
+  late String content;
 
   CourseStructure({
     required this.name,
