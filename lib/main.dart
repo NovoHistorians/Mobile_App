@@ -103,8 +103,11 @@ Future<void> main() async {
     await clearHiveCache();
 
     final contentGenerationService = ContentGenerationService(
-        modelUrl: 'https://api.groq.com/openai/v1/chat/completions',
-        apiKey: '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');
+      modelUrl: 'https://api.groq.com/openai/v1/chat/completions',
+      apiKey: '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',
+      maxRetries: 3, // optional, defaults to 3
+      initialRetryDelay: Duration(seconds: 1), // optional, defaults to 1 second
+    );
 
     final databaseInitializationService = DatabaseInitializationService(
       contentGenerationService: contentGenerationService,
