@@ -37,14 +37,29 @@ class FirestoreService {
 
   Future<List<String>> getDepartments(String level, String year) async {
     try {
-      final doc = await _firestore
+      // Get the year document
+      final yearDoc = await _firestore
           .collection('education')
           .doc(level)
           .collection('years')
           .doc(year)
           .get();
 
-      return List<String>.from(doc.data()?['departments'] ?? []);
+      if (!yearDoc.exists) {
+        print('Year document does not exist');
+        return [];
+      }
+
+      // Get all department documents from the departments subcollection
+      final departmentsSnapshot = await _firestore
+          .collection('education')
+          .doc(level)
+          .collection('years')
+          .doc(year)
+          .collection('departments')
+          .get();
+
+      return departmentsSnapshot.docs.map((doc) => doc.id).toList();
     } catch (e) {
       print('Error fetching departments: $e');
       throw e;

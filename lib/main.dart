@@ -114,13 +114,18 @@ Future<void> main() async {
     );
 
     final prefs = await SharedPreferences.getInstance();
+    //await databaseInitializationService.initializeSpecificYear('الثانوي', 'الأولى ثانوي');
+    //await databaseInitializationService.initializeSpecificDepartment('الثانوي', 'الثانية ثانوي', 'رياضيات');
+    //await databaseInitializationService.initializeSpecificDepartment('الثانوي', 'الثانية ثانوي', 'علوم تجريبية');
+    //await databaseInitializationService.initializeSpecificDepartment('الثانوي', 'الثانية ثانوي', 'تقني رياضي');
 
     // Check if Firestore data has already been initialized
     bool isInitialized =
         await databaseInitializationService.isDatabaseInitialized();
 
     if (!isInitialized) {
-      await databaseInitializationService.initializeDatabase();
+      await databaseInitializationService.initializeSpecificYear(
+          'الإبتدائي', 'الثالثة إبتدائي');
       print('تم تهيئة قاعدة البيانات بنجاح');
     }
 

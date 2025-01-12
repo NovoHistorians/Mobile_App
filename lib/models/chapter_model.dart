@@ -18,6 +18,15 @@ class Chapter {
     required this.backgroundImage,
   });
 
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is Chapter && other.id == id;
+  }
+
+  @override
+  int get hashCode => id.hashCode;
+
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -132,45 +141,55 @@ class _ChapterCardState extends State<ChapterCard> {
                                 fontSize: 16, fontWeight: FontWeight.bold),
                           ),
                   ),
-                  // Right Part
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        '${widget.chapter.number}',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.normal,
-                          color: Color(0xFF000000),
-                        ),
-                      ),
-                      Text(
-                        widget.chapter.title,
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF000000),
-                        ),
-                      ),
-                      SizedBox(height: 25),
-                      ElevatedButton(
-                        onPressed: () {
-                          setState(() {
-                            _isExpanded = !_isExpanded;
-                          });
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                        ),
-                        child: Text(
-                          'قراءة الدروس',
-                          style: TextStyle(
+                  Flexible(
+                    // Use Flexible to constrain the width
+                    child: Container(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            '${widget.chapter.number}',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.normal,
                               color: Color(0xFF000000),
-                              fontWeight: FontWeight.w700),
-                        ),
+                            ),
+                          ),
+                          SizedBox(height: 5), // Add spacing
+                          Text(
+                            widget.chapter.title,
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF000000),
+                            ),
+                            textDirection: TextDirection.rtl,
+                            maxLines:
+                                2, // Allow the title to take up to 2 lines
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          SizedBox(height: 25),
+                          ElevatedButton(
+                            onPressed: () {
+                              setState(() {
+                                _isExpanded = !_isExpanded;
+                              });
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.white,
+                            ),
+                            child: Text(
+                              'قراءة الدروس',
+                              style: TextStyle(
+                                  color: Color(0xFF000000),
+                                  fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
+                  // Right Part
                 ],
               ),
             ),
@@ -183,7 +202,8 @@ class _ChapterCardState extends State<ChapterCard> {
                     Course course = entry.value;
                     bool isPreviousCourseCompleted = index == 0
                         ? true // The first course is always accessible
-                        : widget.chapter.courses[index - 1].isCompleted; // Check if the previous course is completed
+                        : widget.chapter.courses[index - 1]
+                            .isCompleted; // Check if the previous course is completed
                     return CourseListItem(
                       course: course,
                       userId: widget.userId,
@@ -192,7 +212,8 @@ class _ChapterCardState extends State<ChapterCard> {
                         Provider.of<ContentProvider>(context, listen: false)
                             .notifyListeners();
                       },
-                      isPreviousCourseCompleted: isPreviousCourseCompleted, // Pass the status
+                      isPreviousCourseCompleted:
+                          isPreviousCourseCompleted, // Pass the status
                     );
                   }).toList(),
                 ),
