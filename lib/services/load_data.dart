@@ -7,6 +7,7 @@ class FirestoreService {
   Future<Map<String, dynamic>> getEducationLevels() async {
     try {
       final snapshot = await _firestore.collection('education').get();
+      print('Firestore Documents: ${snapshot.docs}'); // Debug
       Map<String, dynamic> levels = {};
 
       for (var doc in snapshot.docs) {

@@ -39,6 +39,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   Future<void> _loadEducationData() async {
     try {
       final levels = await _firestoreService.getEducationLevels();
+      print('Fetched Education Levels: $levels'); // Debug
       setState(() {
         _educationLevels = levels;
         _isLoading = false;
@@ -51,6 +52,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   Future<void> _loadYears(String level) async {
     try {
       final years = await _firestoreService.getYearsForLevel(level);
+      print('Fetched Years for $level: $years'); // Debug
       setState(() {
         _years = years;
         _selectedYear = null;
@@ -65,6 +67,8 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     if (_shouldShowDepartment()) {
       try {
         final departments = await _firestoreService.getDepartments(level, year);
+        print(
+            'Fetched Departments for $level and $year: $departments'); // Debug
         setState(() {
           _departments = departments;
           _selectedDepartment = null;

@@ -11,6 +11,7 @@ import 'package:flutter/foundation.dart' show kIsWeb; // For platform checks
 import 'package:shared_preferences/shared_preferences.dart';
 
 // Screens
+import 'data/level_years.dart';
 import 'providers/google_auth_provider.dart';
 import 'screens/chatbot_screen.dart';
 import 'screens/contact_info_screen.dart';
@@ -34,10 +35,13 @@ import 'providers/auth_provider.dart' as app_auth;
 
 // Services
 import 'services/firebase_init_service.dart';
+import 'services/initilize.dart';
 import 'services/openAi_service.dart';
 import 'services/quiz_generator_service.dart';
 
 // Utils and Config
+import 'services/test.dart';
+import 'services/test_2.dart';
 import 'utils/theme.dart';
 import 'firebase_options.dart';
 
@@ -98,18 +102,23 @@ Future<void> main() async {
 
     await clearHiveCache();
 
-    // Initialize services
-    final firebaseInit = FirebaseInitService();
+    final contentGenerationService = ContentGenerationService(
+        modelUrl: 'https://api.groq.com/openai/v1/chat/completions',
+        apiKey: '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');
+
+    final databaseInitializationService = DatabaseInitializationService(
+      contentGenerationService: contentGenerationService,
+    );
 
     final prefs = await SharedPreferences.getInstance();
 
     // Check if Firestore data has already been initialized
-    bool isInitialized = await firebaseInit.isDatabaseInitialized();
+    bool isInitialized =
+        await databaseInitializationService.isDatabaseInitialized();
 
-    // Initialize education content if needed (only once during development)
     if (!isInitialized) {
-      print('Initializing education content...');
-      await firebaseInit.initializeEducationContent();
+      await databaseInitializationService.initializeDatabase();
+      print('تم تهيئة قاعدة البيانات بنجاح');
     }
 
     // Initialize services
