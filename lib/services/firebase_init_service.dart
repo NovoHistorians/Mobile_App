@@ -1,444 +1,623 @@
-// import 'package:cloud_firestore/cloud_firestore.dart';
-// import 'package:shared_preferences/shared_preferences.dart';
-// import '../data/education_system.dart';
-// import '../data/level_years.dart';
-// import 'content_generator.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../data/level_years.dart';
+import 'content_generator.dart'; // Assuming this contains ContentGenerationService
 
-// class FirebaseInitService {
-//   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-//   final ContentGeneratorService _contentGenerator;
+class DatabaseInitializationService {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final ContentGenerationService _contentGenerationService;
 
-//   FirebaseInitService(String apiKey)
-//       : _contentGenerator = ContentGeneratorService(apiKey);
+  DatabaseInitializationService({
+    required ContentGenerationService contentGenerationService,
+  }) : _contentGenerationService = contentGenerationService;
 
-//   Future<void> initializeEducationContent() async {
-//     try {
-//       // Check if initialization has already been done
-//       if (await isDatabaseInitialized()) {
-//         print('Database already initialized');
-//         return;
-//       }
+  String formatNumberAsString(int number, {String prefix = ''}) {
+    return '$prefix$number';
+  }
 
-//       final batch = _firestore.batch();
+  Future<void> initializeDatabase() async {
+    try {
+      // Check if the database has already been initialized
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getBool('database_initialized') ?? false) {
+        print('Database already initialized');
+        return;
+      }
 
-//       // Initialize education levels
-//       for (var levelEntry in educationSystem.entries) {
-//         await _initializeLevel(levelEntry.key, levelEntry.value);
-//       }
+      // Use a batch to group all Firestore writes
+      final batch = _firestore.batch();
 
-//       print('Education content initialized successfully');
+      // Iterate through the education system data
+      for (var levelEntry in educationSystem.entries) {
+        final levelName = levelEntry.key;
+        final level = levelEntry.value;
 
-//       // Mark initialization as complete
-//       final prefs = await SharedPreferences.getInstance();
-//       await prefs.setBool('database_initialized', true);
-//     } catch (e) {
-//       print('Error initializing education content: $e');
-//       throw e;
-//     }
-//   }
+        // Create a reference for the education level
+        final levelRef = _firestore.collection('education').doc(levelName);
+        batch.set(levelRef, {'name': level.name});
 
-//   Future<void> initializeYearContent(String level, String year) async {
-//     try {
-//       final levelData = educationSystem[level];
-//       if (levelData == null) {
-//         throw Exception('Level $level not found in education system');
-//       }
+        // Iterate through years
+        for (var yearEntry in level.years.entries) {
+          final yearName = yearEntry.key;
+          final year = yearEntry.value;
 
-//       final yearData = levelData.years[year];
-//       if (yearData == null) {
-//         throw Exception('Year $year not found in level $level');
-//       }
+          // Create a reference for the year
+          final yearRef = levelRef.collection('years').doc(yearName);
+          batch.set(yearRef, {
+            'name': year.name,
+            'departments': year.departments != null
+                ? year.departments!
+                    .map((k, v) => MapEntry(k, v.map((s) => s.name).toList()))
+                : null,
+          });
 
-//       final levelRef = _firestore.collection('education').doc(level);
-//       await _initializeYear(levelRef, year, yearData);
+          // Handle semesters if they exist
+          if (year.semesters != null) {
+            for (var semester in year.semesters!) {
+              final semesterRef =
+                  yearRef.collection('semesters').doc(semester.name);
+              batch.set(semesterRef, {'name': semester.name});
 
-//       print('Content initialized successfully for $level - $year');
-//     } catch (e) {
-//       print('Error initializing content for $level - $year: $e');
-//       throw e;
-//     }
-//   }
+              int chapterNumber = 1;
 
-//   Future<void> _initializeLevel(String levelKey, EducationLevel level) async {
-//     try {
-//       final levelRef = _firestore.collection('education').doc(levelKey);
-//       await levelRef.set({'name': level.name});
+              // Handle chapters
+              for (var chapter in semester.chapters) {
+                final chapterRef = semesterRef.collection('chapters').doc();
+                batch.set(chapterRef, {
+                  'name': chapter.name,
+                  'backgroundImage': chapter.backgroundImage,
+                  'number':
+                      formatNumberAsString(chapterNumber, prefix: 'الوحدة '),
+                });
 
-//       // Initialize years for this level
-//       for (var yearEntry in level.years.entries) {
-//         await _initializeYear(levelRef, yearEntry.key, yearEntry.value);
-//       }
-//     } catch (e) {
-//       print('Error initializing level $levelKey: $e');
-//       throw e;
-//     }
-//   }
+                int courseNumber = 1;
 
-//   Future<void> _initializeYear(
-//     DocumentReference levelRef,
-//     String yearKey,
-//     YearStructure year,
-//   ) async {
-//     try {
-//       final yearRef = levelRef.collection('years').doc(yearKey);
+                // Handle courses
+                for (var course in chapter.courses) {
+                  // Generate content for the course
+                  final content =
+                      await _contentGenerationService.generateCourseContent(
+                    chapter.name,
+                    course.name,
+                  );
 
-//       // Set basic year information
-//       await yearRef.set({
-//         'name': year.name,
-//         'departments': year.departments?.keys.toList() ?? ['none'],
-//         'lastUpdated': FieldValue.serverTimestamp(),
-//       });
+                  if (content != null) {
+                    course.content = content;
+                    final courseRef = chapterRef.collection('courses').doc();
+                    batch.set(courseRef, {
+                      'name': course.name,
+                      'content': course.content,
+                      'number': formatNumberAsString(courseNumber,
+                          prefix: 'الوضعية '),
+                      'createdAt': FieldValue.serverTimestamp(),
+                    });
+                    courseNumber++;
+                  } else {
+                    print(
+                        'Failed to generate content for course: ${course.name}');
+                  }
+                }
+                chapterNumber++;
+              }
+            }
+          }
 
-//       // Check if we have predefined content
-//       if (year.semesters != null && year.semesters!.isNotEmpty) {
-//         // Initialize predefined content
-//         await _initializePredefinedContent(yearRef, year);
-//       } else {
-//         // Generate content using LLM for years without predefined content
-//         final structure = _getStructureForYear(levelRef.id, yearKey);
-//         await _generateAndInitializeContent(
-//           levelRef.id,
-//           yearKey,
-//           null, // No department for years without departments
-//           structure,
-//         );
-//       }
-//     } catch (e) {
-//       print('Error initializing year $yearKey: $e');
-//       throw e;
-//     }
-//   }
+          // Handle departments if they exist
+          if (year.departments != null) {
+            for (var departmentEntry in year.departments!.entries) {
+              final departmentName = departmentEntry.key;
+              final semesters = departmentEntry.value;
 
-//   Future<void> _initializePredefinedContent(
-//     DocumentReference yearRef,
-//     YearStructure year,
-//   ) async {
-//     try {
-//       for (var semester in year.semesters!) {
-//         final semesterRef = yearRef.collection('semesters').doc(semester.name);
-//         await semesterRef.set({'name': semester.name});
+              // Create a reference for the department
+              final departmentRef =
+                  yearRef.collection('departments').doc(departmentName);
+              batch.set(departmentRef, {'name': departmentName});
 
-//         for (var chapter in semester.chapters) {
-//           final chapterRef = semesterRef.collection('chapters').doc();
-//           await chapterRef.set({
-//             'name': chapter.name,
-//             'backgroundImage': chapter.backgroundImage,
-//           });
+              // Handle semesters within the department
+              for (var semester in semesters) {
+                final semesterRef =
+                    departmentRef.collection('semesters').doc(semester.name);
+                batch.set(semesterRef, {'name': semester.name});
 
-//           for (var course in chapter.courses) {
-//             final courseRef = chapterRef.collection('courses').doc();
+                int chapterNumber = 1;
 
-//             // Split content into flashcards
-//             final List<String> flashcards = course.content
-//                 .split('---')
-//                 .map((content) => content.trim())
-//                 .where((content) => content.isNotEmpty)
-//                 .toList();
+                // Handle chapters
+                for (var chapter in semester.chapters) {
+                  final chapterRef = semesterRef.collection('chapters').doc();
+                  batch.set(chapterRef, {
+                    'name': chapter.name,
+                    'backgroundImage': chapter.backgroundImage,
+                    'number':
+                        formatNumberAsString(chapterNumber, prefix: 'الوحدة '),
+                  });
 
-//             await courseRef.set({
-//               'name': course.name,
-//               'content': course.content,
-//               'flashcards': flashcards
-//                   .map((content) => {
-//                         'content': content,
-//                       })
-//                   .toList(),
-//               'createdAt': FieldValue.serverTimestamp(),
-//             });
-//           }
-//         }
-//       }
-//     } catch (e) {
-//       print('Error initializing predefined content: $e');
-//       throw e;
-//     }
-//   }
+                  int courseNumber = 1;
 
-//   Future<void> _generateAndInitializeContent(
-//     String level,
-//     String year,
-//     String? department,
-//     String structure,
-//   ) async {
-//     print('Generating content for $level - $year (Department: $department)');
-//     try {
-//       await _contentGenerator.generateAndInitializeContent(
-//         level,
-//         year,
-//         department: department,
-//       );
-//     } catch (e) {
-//       print('Error generating content for $level $year: $e');
-//       throw e;
-//     }
-//   }
+                  // Handle courses
+                  for (var course in chapter.courses) {
+                    // Generate content for the course
+                    final content =
+                        await _contentGenerationService.generateCourseContent(
+                      chapter.name,
+                      course.name,
+                    );
 
-//   String _getStructureForYear(String level, String year) {
-//     final levelData = educationSystem[level];
-//     if (levelData == null) {
-//       throw Exception('Level $level not found in education system');
-//     }
+                    if (content != null) {
+                      course.content = content;
+                      final courseRef = chapterRef.collection('courses').doc();
+                      batch.set(courseRef, {
+                        'name': course.name,
+                        'content': course.content,
+                        'number': formatNumberAsString(courseNumber,
+                            prefix: 'الوضعية '),
+                        'createdAt': FieldValue.serverTimestamp(),
+                      });
+                      courseNumber++;
+                    } else {
+                      print(
+                          'Failed to generate content for course: ${course.name}');
+                    }
+                  }
+                  chapterNumber++;
+                }
+              }
+            }
+          }
+        }
+      }
 
-//     final yearData = levelData.years[year];
-//     if (yearData == null) {
-//       throw Exception('Year $year not found in level $level');
-//     }
+      // Commit the batch
+      await batch.commit();
 
-//     // Get the structure from the first semester (assuming all semesters have the same structure)
-//     final semester = yearData.semesters?.first;
-//     if (semester == null) {
-//       throw Exception('No semesters found for year $year in level $level');
-//     }
+      // Mark the database as initialized
+      await prefs.setBool('database_initialized', true);
+      print('Database initialized successfully');
+    } catch (e) {
+      print('Error initializing database: $e');
+      throw e; // Re-throw the error for further handling
+    }
+  }
 
-//     return semester;
-//   }
+  Future<bool> isDatabaseInitialized() async {
+    try {
+      // Check SharedPreferences first for quick response
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getBool('database_initialized') ?? false) {
+        return true;
+      }
 
-//   Future<bool> isDatabaseInitialized() async {
-//     try {
-//       // Check SharedPreferences first for quick response
-//       final prefs = await SharedPreferences.getInstance();
-//       if (prefs.getBool('database_initialized') ?? false) {
-//         return true;
-//       }
+      // Double-check Firestore if SharedPreferences says no
+      final snapshot = await _firestore.collection('education').get();
+      final isInitialized = snapshot.docs.isNotEmpty;
 
-//       // Double-check Firestore if SharedPreferences says no
-//       final snapshot = await _firestore.collection('education').get();
-//       final isInitialized = snapshot.docs.isNotEmpty;
+      // Update SharedPreferences if we found data
+      if (isInitialized) {
+        await prefs.setBool('database_initialized', true);
+      }
 
-//       // Update SharedPreferences if we found data
-//       if (isInitialized) {
-//         await prefs.setBool('database_initialized', true);
-//       }
+      return isInitialized;
+    } catch (e) {
+      print('Error checking initialization status: $e');
+      return false;
+    }
+  }
 
-//       return isInitialized;
-//     } catch (e) {
-//       print('Error checking initialization status: $e');
-//       return false;
-//     }
-//   }
+  Future<void> initializeSpecificLevel(String levelName) async {
+    try {
+      final level = educationSystem[levelName];
+      if (level == null) {
+        throw Exception('Level $levelName not found in education system');
+      }
 
-//   Future<void> reinitializeContent({bool force = false}) async {
-//     try {
-//       if (force) {
-//         // Clear initialization flag
-//         final prefs = await SharedPreferences.getInstance();
-//         await prefs.remove('database_initialized');
+      final batch = _firestore.batch();
 
-//         // Clear existing content
-//         final batch = _firestore.batch();
-//         final snapshot = await _firestore.collection('education').get();
-//         for (var doc in snapshot.docs) {
-//           batch.delete(doc.reference);
-//         }
-//         await batch.commit();
-//       }
+      // Create a reference for the education level
+      final levelRef = _firestore.collection('education').doc(levelName);
+      batch.set(levelRef, {'name': level.name});
 
-//       // Reinitialize content
-//       await initializeEducationContent();
-//     } catch (e) {
-//       print('Error reinitializing content: $e');
-//       throw e;
-//     }
-//   }
-// }
+      // Iterate through years in the level
+      for (var yearEntry in level.years.entries) {
+        final yearName = yearEntry.key;
+        final year = yearEntry.value;
 
-// // import 'package:cloud_firestore/cloud_firestore.dart';
-// // import 'package:shared_preferences/shared_preferences.dart';
-// // import '../data/education_system.dart';
-// // import '../data/level_years.dart';
-// // import 'content_generator.dart';
+        // Create a reference for the year
+        final yearRef = levelRef.collection('years').doc(yearName);
+        batch.set(yearRef, {
+          'name': year.name,
+          'departments': year.departments != null
+              ? year.departments!
+                  .map((k, v) => MapEntry(k, v.map((s) => s.name).toList()))
+              : null,
+        });
 
-// // class FirebaseInitService {
-// //   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-// //   final ContentGeneratorService _contentGenerator;
+        // Handle semesters if they exist
+        if (year.semesters != null) {
+          for (var semester in year.semesters!) {
+            final semesterRef =
+                yearRef.collection('semesters').doc(semester.name);
+            batch.set(semesterRef, {'name': semester.name});
 
-// //   FirebaseInitService(String apiKey)
-// //       : _contentGenerator = ContentGeneratorService(apiKey);
+            // Initialize chapter number counter
+            int chapterNumber = 1;
 
-// //   Future<void> initializeEducationContent() async {
-// //     try {
-// //       // Check if initialization has already been done
-// //       if (await isDatabaseInitialized()) {
-// //         print('Database already initialized');
-// //         return;
-// //       }
+            // Handle chapters
+            for (var chapter in semester.chapters) {
+              final chapterRef = semesterRef.collection('chapters').doc();
+              batch.set(chapterRef, {
+                'name': chapter.name,
+                'backgroundImage': chapter.backgroundImage,
+                'number':
+                    formatNumberAsString(chapterNumber, prefix: 'الوحدة '),
+              });
 
-// //       final batch = _firestore.batch();
+              // Initialize course number counter
+              int courseNumber = 1;
 
-// //       // Initialize education levels
-// //       for (var levelEntry in educationSystem.entries) {
-// //         await _initializeLevel(levelEntry.key, levelEntry.value);
-// //       }
+              // Handle courses
+              for (var course in chapter.courses) {
+                // Generate content for the course
+                final content =
+                    await _contentGenerationService.generateCourseContent(
+                  chapter.name,
+                  course.name,
+                );
 
-// //       print('Education content initialized successfully');
+                if (content != null) {
+                  course.content = content;
+                  final courseRef = chapterRef.collection('courses').doc();
+                  batch.set(courseRef, {
+                    'name': course.name,
+                    'content': course.content,
+                    'number':
+                        formatNumberAsString(courseNumber, prefix: 'الوضعية '),
+                    'createdAt': FieldValue.serverTimestamp(),
+                  });
 
-// //       // Mark initialization as complete
-// //       final prefs = await SharedPreferences.getInstance();
-// //       await prefs.setBool('database_initialized', true);
-// //     } catch (e) {
-// //       print('Error initializing education content: $e');
-// //       throw e;
-// //     }
-// //   }
+                  courseNumber++;
+                } else {
+                  print(
+                      'Failed to generate content for course: ${course.name}');
+                }
+              }
+              chapterNumber++;
+            }
+          }
+        }
 
-// //   Future<void> _initializeLevel(String levelKey, EducationLevel level, String structure) async {
-// //     try {
-// //       final levelRef = _firestore.collection('education').doc(levelKey);
-// //       await levelRef.set({'name': level.name});
+        // Handle departments if they exist
+        if (year.departments != null) {
+          for (var departmentEntry in year.departments!.entries) {
+            final departmentName = departmentEntry.key;
+            final semesters = departmentEntry.value;
 
-// //       // Initialize years for this level
-// //       for (var yearEntry in level.years.entries) {
-// //         await _initializeYear(levelRef, yearEntry.key, yearEntry.value, structure);
-// //       }
-// //     } catch (e) {
-// //       print('Error initializing level $levelKey: $e');
-// //       throw e;
-// //     }
-// //   }
+            // Create a reference for the department
+            final departmentRef =
+                yearRef.collection('departments').doc(departmentName);
+            batch.set(departmentRef, {'name': departmentName});
 
-// //   Future<void> _initializeYear(
-// //     DocumentReference levelRef,
-// //     String yearKey,
-// //     YearStructure year,
-// //     String structure
-// //   ) async {
-// //     try {
-// //       final yearRef = levelRef.collection('years').doc(yearKey);
+            // Handle semesters within the department
+            for (var semester in semesters) {
+              final semesterRef =
+                  departmentRef.collection('semesters').doc(semester.name);
+              batch.set(semesterRef, {'name': semester.name});
 
-// //       // Set basic year information
-// //       await yearRef.set({
-// //         'name': year.name,
-// //         'departments': year.departments,
-// //         'lastUpdated': FieldValue.serverTimestamp(),
-// //       });
+              // Initialize chapter number counter
+              int chapterNumber = 1;
 
-// //       // Check if we have predefined content
-// //       if (year.semesters.isNotEmpty) {
-// //         await _initializePredefinedContent(yearRef, year);
-// //       } else {
-// //         // Generate content using LLM
-// //         await _generateAndInitializeContent(
-// //           levelRef.id,
-// //           yearKey,
-// //           year.departments.contains('none') ? null : year.departments.first,
-// //           structure
-// //         );
-// //       }
-// //     } catch (e) {
-// //       print('Error initializing year $yearKey: $e');
-// //       throw e;
-// //     }
-// //   }
+              // Handle chapters
+              for (var chapter in semester.chapters) {
+                final chapterRef = semesterRef.collection('chapters').doc();
+                batch.set(chapterRef, {
+                  'name': chapter.name,
+                  'backgroundImage': chapter.backgroundImage,
+                  'number':
+                      formatNumberAsString(chapterNumber, prefix: 'الوحدة '),
+                });
 
-// //   Future<void> _initializePredefinedContent(
-// //     DocumentReference yearRef,
-// //     YearStructure year,
-// //   ) async {
-// //     try {
-// //       for (var semester in year.semesters) {
-// //         final semesterRef = yearRef.collection('semesters').doc(semester.name);
-// //         await semesterRef.set({'name': semester.name});
+                // Initialize course number counter
+                int courseNumber = 1;
 
-// //         for (var chapter in semester.chapters) {
-// //           final chapterRef = semesterRef.collection('chapters').doc();
-// //           await chapterRef.set({
-// //             'name': chapter.name,
-// //             'backgroundImage': chapter.backgroundImage,
-// //           });
+                // Handle courses
+                for (var course in chapter.courses) {
+                  // Generate content for the course
+                  final content =
+                      await _contentGenerationService.generateCourseContent(
+                    chapter.name,
+                    course.name,
+                  );
 
-// //           for (var course in chapter.courses) {
-// //             final courseRef = chapterRef.collection('courses').doc();
+                  if (content != null) {
+                    course.content = content;
+                    final courseRef = chapterRef.collection('courses').doc();
+                    batch.set(courseRef, {
+                      'name': course.name,
+                      'content': course.content,
+                      'number': formatNumberAsString(courseNumber,
+                          prefix: 'الوضعية '),
+                      'createdAt': FieldValue.serverTimestamp(),
+                    });
+                    courseNumber++;
+                  } else {
+                    print(
+                        'Failed to generate content for course: ${course.name}');
+                  }
+                }
+                chapterNumber++;
+              }
+            }
+          }
+        }
+      }
 
-// //             // Split content into flashcards
-// //             final List<String> flashcards = course.content
-// //                 .split('---')
-// //                 .map((content) => content.trim())
-// //                 .where((content) => content.isNotEmpty)
-// //                 .toList();
+      // Commit the batch
+      await batch.commit();
 
-// //             await courseRef.set({
-// //               'name': course.name,
-// //               'content': course.content,
-// //               'flashcards': flashcards
-// //                   .map((content) => {
-// //                         'content': content,
-// //                       })
-// //                   .toList(),
-// //               'createdAt': FieldValue.serverTimestamp(),
-// //             });
-// //           }
-// //         }
-// //       }
-// //     } catch (e) {
-// //       print('Error initializing predefined content: $e');
-// //       throw e;
-// //     }
-// //   }
+      print('Initialized level $levelName successfully');
+    } catch (e) {
+      print('Error initializing level $levelName: $e');
+      throw e; // Re-throw the error for further handling
+    }
+  }
 
-// //   Future<void> _generateAndInitializeContent(
-// //     String level,
-// //     String year,
-// //     String? department,
-// //     String structure,
-// //   ) async {
-// //     try {
-// //       await _contentGenerator.generateAndInitializeContent(
-// //         level,
-// //         year,
-// //         structure,
-// //         department: department,
-// //       );
-// //     } catch (e) {
-// //       print('Error generating content for $level $year: $e');
-// //       throw e;
-// //     }
-// //   }
+  // Function to initialize a specific year within a level
+  Future<void> initializeSpecificYear(String levelName, String yearName) async {
+    try {
+      final level = educationSystem[levelName];
+      if (level == null) {
+        throw Exception('Level $levelName not found in education system');
+      }
 
-// //   Future<bool> isDatabaseInitialized() async {
-// //     try {
-// //       // Check SharedPreferences first for quick response
-// //       final prefs = await SharedPreferences.getInstance();
-// //       if (prefs.getBool('database_initialized') ?? false) {
-// //         return true;
-// //       }
+      final year = level.years[yearName];
+      if (year == null) {
+        throw Exception('Year $yearName not found in level $levelName');
+      }
 
-// //       // Double-check Firestore if SharedPreferences says no
-// //       final snapshot = await _firestore.collection('education').get();
-// //       final isInitialized = snapshot.docs.isNotEmpty;
+      final batch = _firestore.batch();
 
-// //       // Update SharedPreferences if we found data
-// //       if (isInitialized) {
-// //         await prefs.setBool('database_initialized', true);
-// //       }
+      // Create a reference for the education level
+      final levelRef = _firestore.collection('education').doc(levelName);
+      batch.set(levelRef, {'name': level.name});
 
-// //       return isInitialized;
-// //     } catch (e) {
-// //       print('Error checking initialization status: $e');
-// //       return false;
-// //     }
-// //   }
+      // Create a reference for the year
+      final yearRef = levelRef.collection('years').doc(yearName);
+      batch.set(yearRef, {
+        'name': year.name,
+        'departments': year.departments != null
+            ? year.departments!
+                .map((k, v) => MapEntry(k, v.map((s) => s.name).toList()))
+            : null,
+      });
 
-// //   Future<void> reinitializeContent({bool force = false}) async {
-// //     try {
-// //       if (force) {
-// //         // Clear initialization flag
-// //         final prefs = await SharedPreferences.getInstance();
-// //         await prefs.remove('database_initialized');
+      // Handle semesters if they exist
+      if (year.semesters != null) {
+        for (var semester in year.semesters!) {
+          final semesterRef =
+              yearRef.collection('semesters').doc(semester.name);
+          batch.set(semesterRef, {'name': semester.name});
 
-// //         // Clear existing content
-// //         final batch = _firestore.batch();
-// //         final snapshot = await _firestore.collection('education').get();
-// //         for (var doc in snapshot.docs) {
-// //           batch.delete(doc.reference);
-// //         }
-// //         await batch.commit();
-// //       }
+          // Initialize chapter number counter
+          int chapterNumber = 1;
 
-// //       // Reinitialize content
-// //       await initializeEducationContent();
-// //     } catch (e) {
-// //       print('Error reinitializing content: $e');
-// //       throw e;
-// //     }
-// //   }
-// // }
+          // Handle chapters
+          for (var chapter in semester.chapters) {
+            final chapterRef = semesterRef.collection('chapters').doc();
+            batch.set(chapterRef, {
+              'name': chapter.name,
+              'backgroundImage': chapter.backgroundImage,
+              'number': formatNumberAsString(chapterNumber, prefix: 'الوحدة '),
+            });
+
+            // Initialize course number counter
+            int courseNumber = 1;
+
+            // Handle courses
+            for (var course in chapter.courses) {
+              // Generate content for the course
+              final content =
+                  await _contentGenerationService.generateCourseContent(
+                chapter.name,
+                course.name,
+              );
+
+              if (content != null) {
+                course.content = content;
+                final courseRef = chapterRef.collection('courses').doc();
+                batch.set(courseRef, {
+                  'name': course.name,
+                  'content': course.content,
+                  'number':
+                      formatNumberAsString(courseNumber, prefix: 'الوضعية '),
+                  'createdAt': FieldValue.serverTimestamp(),
+                });
+                courseNumber++;
+              } else {
+                print('Failed to generate content for course: ${course.name}');
+              }
+            }
+            chapterNumber++;
+          }
+        }
+      }
+
+      // Handle departments if they exist
+      if (year.departments != null) {
+        for (var departmentEntry in year.departments!.entries) {
+          final departmentName = departmentEntry.key;
+          final semesters = departmentEntry.value;
+
+          // Create a reference for the department
+          final departmentRef =
+              yearRef.collection('departments').doc(departmentName);
+          batch.set(departmentRef, {'name': departmentName});
+
+          // Handle semesters within the department
+          for (var semester in semesters) {
+            final semesterRef =
+                departmentRef.collection('semesters').doc(semester.name);
+            batch.set(semesterRef, {'name': semester.name});
+
+            // Initialize chapter number counter
+            int chapterNumber = 1;
+
+            // Handle chapters
+            for (var chapter in semester.chapters) {
+              final chapterRef = semesterRef.collection('chapters').doc();
+              batch.set(chapterRef, {
+                'name': chapter.name,
+                'backgroundImage': chapter.backgroundImage,
+                'number':
+                    formatNumberAsString(chapterNumber, prefix: 'الوحدة '),
+              });
+
+              // Initialize course number counter
+              int courseNumber = 1;
+
+              // Handle courses
+              for (var course in chapter.courses) {
+                // Generate content for the course
+                final content =
+                    await _contentGenerationService.generateCourseContent(
+                  chapter.name,
+                  course.name,
+                );
+
+                if (content != null) {
+                  course.content = content;
+                  final courseRef = chapterRef.collection('courses').doc();
+                  batch.set(courseRef, {
+                    'name': course.name,
+                    'content': course.content,
+                    'number':
+                        formatNumberAsString(courseNumber, prefix: 'الوضعية '),
+                    'createdAt': FieldValue.serverTimestamp(),
+                  });
+                  courseNumber++;
+                } else {
+                  print(
+                      'Failed to generate content for course: ${course.name}');
+                }
+              }
+              chapterNumber++;
+            }
+          }
+        }
+      }
+
+      // Commit the batch
+      await batch.commit();
+
+      print('Initialized year $yearName in level $levelName successfully');
+    } catch (e) {
+      print('Error initializing year $yearName in level $levelName: $e');
+      throw e; // Re-throw the error for further handling
+    }
+  }
+
+  Future<void> initializeSpecificDepartment(
+    String levelName,
+    String yearName,
+    String departmentName,
+  ) async {
+    try {
+      // Fetch the level from the education system
+      final level = educationSystem[levelName];
+      if (level == null) {
+        throw Exception('Level $levelName not found in education system');
+      }
+
+      // Fetch the year from the level
+      final year = level.years[yearName];
+      if (year == null) {
+        throw Exception('Year $yearName not found in level $levelName');
+      }
+
+      // Fetch the department from the year
+      final department = year.departments?[departmentName];
+      if (department == null) {
+        throw Exception(
+            'Department $departmentName not found in year $yearName');
+      }
+
+      // Use a batch to group all Firestore writes
+      final batch = _firestore.batch();
+
+      // Create a reference for the education level
+      final levelRef = _firestore.collection('education').doc(levelName);
+      batch.set(levelRef, {'name': level.name});
+
+      // Create a reference for the year
+      final yearRef = levelRef.collection('years').doc(yearName);
+      batch.set(yearRef, {
+        'name': year.name,
+        'departments': year.departments != null
+            ? year.departments!
+                .map((k, v) => MapEntry(k, v.map((s) => s.name).toList()))
+            : null,
+      });
+
+      // Create a reference for the department
+      final departmentRef =
+          yearRef.collection('departments').doc(departmentName);
+      batch.set(departmentRef, {'name': departmentName});
+
+      // Handle semesters within the department
+      for (var semester in department) {
+        final semesterRef =
+            departmentRef.collection('semesters').doc(semester.name);
+        batch.set(semesterRef, {'name': semester.name});
+
+        // Initialize chapter number counter
+        int chapterNumber = 1;
+
+        // Handle chapters
+        for (var chapter in semester.chapters) {
+          final chapterRef = semesterRef.collection('chapters').doc();
+          batch.set(chapterRef, {
+            'name': chapter.name,
+            'backgroundImage': chapter.backgroundImage,
+            'number': formatNumberAsString(chapterNumber, prefix: 'الوحدة '),
+          });
+
+          // Initialize course number counter
+          int courseNumber = 1;
+
+          // Handle courses
+          for (var course in chapter.courses) {
+            // Generate content for the course
+            final content =
+                await _contentGenerationService.generateCourseContent(
+              chapter.name,
+              course.name,
+            );
+
+            if (content != null) {
+              course.content = content;
+              final courseRef = chapterRef.collection('courses').doc();
+              batch.set(courseRef, {
+                'name': course.name,
+                'content': course.content,
+                'number':
+                    formatNumberAsString(courseNumber, prefix: 'الوضعية '),
+                'createdAt': FieldValue.serverTimestamp(),
+              });
+              courseNumber++;
+            } else {
+              print('Failed to generate content for course: ${course.name}');
+            }
+          }
+          chapterNumber++;
+        }
+      }
+
+      // Commit the batch
+      await batch.commit();
+
+      print(
+          'Initialized department $departmentName in year $yearName and level $levelName successfully');
+    } catch (e) {
+      print(
+          'Error initializing department $departmentName in year $yearName and level $levelName: $e');
+      throw e; // Re-throw the error for further handling
+    }
+  }
+}

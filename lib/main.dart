@@ -35,13 +35,11 @@ import 'providers/auth_provider.dart' as app_auth;
 
 // Services
 import 'services/firebase_init_service.dart';
-import 'services/initilize.dart';
 import 'services/openAi_service.dart';
 import 'services/quiz_generator_service.dart';
 
 // Utils and Config
-import 'services/test.dart';
-import 'services/test_2.dart';
+import 'services/content_generator.dart';
 import 'utils/theme.dart';
 import 'firebase_options.dart';
 
